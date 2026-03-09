@@ -3,42 +3,33 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { loginUser } from '@/lib/auth';
+import { loginWithPin } from '@/lib/auth';
 
 export default function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!email.trim() || !password) {
-      setError('Por favor, completa todos los campos');
+    if (!pin.trim()) {
+      setError('Introduce tu PIN');
       return;
     }
     setLoading(true);
     try {
-      await loginUser(email.trim(), password);
+      await loginWithPin(pin);
       router.push('/dashboard');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
       if (message === 'NO_ADMIN_ACCESS') {
         setError('Acceso denegado. Tu cuenta no tiene permisos de administrador.');
-      } else if (message.includes('auth/user-not-found')) {
-        setError('Usuario no encontrado');
-      } else if (message.includes('auth/wrong-password')) {
-        setError('Contraseña incorrecta');
-      } else if (message.includes('auth/invalid-email')) {
-        setError('Correo electrónico inválido');
-      } else if (message.includes('auth/too-many-requests')) {
-        setError('Demasiados intentos. Intenta más tarde.');
-      } else if (message.includes('auth/invalid-credential')) {
-        setError('Credenciales inválidas. Verifica tu correo y contraseña.');
+      } else if (message.includes('PIN incorrecto') || message.includes('incorrecto')) {
+        setError('PIN incorrecto');
       } else {
-        setError('Error al iniciar sesión. Verifica tus credenciales.');
+        setError(message || 'Error al iniciar sesión. Verifica tu PIN.');
       }
       setLoading(false);
     }
@@ -61,36 +52,22 @@ export default function LoginForm() {
         <form onSubmit={handleSubmit}>
           <div className="relative mb-8">
             <label
-              htmlFor="email"
+              htmlFor="pin"
               className="absolute -top-2.5 left-4 bg-white px-2 text-sm text-[#666] z-10"
             >
-              Usuario
+              PIN
             </label>
             <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full py-4 px-5 border border-[#d0d0d0] rounded-lg text-base text-[#333] bg-white focus:outline-none focus:border-[#4A90E2] focus:ring-2 focus:ring-[#4A90E2]/20 transition-all"
-            />
-          </div>
-
-          <div className="relative mb-8">
-            <label
-              htmlFor="password"
-              className="absolute -top-2.5 left-4 bg-white px-2 text-sm text-[#666] z-10"
-            >
-              Contraseña
-            </label>
-            <input
-              id="password"
+              id="pin"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={5}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
               required
-              autoComplete="current-password"
+              autoComplete="one-time-code"
+              placeholder="5 dígitos"
               className="w-full py-4 px-5 border border-[#d0d0d0] rounded-lg text-base text-[#333] bg-white focus:outline-none focus:border-[#4A90E2] focus:ring-2 focus:ring-[#4A90E2]/20 transition-all"
             />
           </div>

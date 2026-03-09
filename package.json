@@ -7,15 +7,19 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "verificar": "node verificar-config.js"
+    "verificar": "node verificar-config.js",
+    "admins:pin": "node scripts/set-admin-pins.js"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "firebase": "^11.2.0",
+    "firebase-admin": "^13.0.1",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "readline-sync": "^1.4.10",
     "@types/node": "^22.10.1",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",

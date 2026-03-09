@@ -10,10 +10,11 @@ export default function SectionCard({ label, lines }: { label: string; lines: st
   const isMetcon = label.toUpperCase().startsWith('METCON');
   const labelBg = isMetcon ? '!bg-black' : 'bg-[#6E6E6E]';
 
+  const labelStripClass = 'flex flex-shrink-0 w-14 min-w-14 items-center justify-center py-4 px-3 text-white text-xs font-bold uppercase tracking-wider';
   return (
     <div className="mb-6 flex rounded-lg overflow-hidden border border-[#c4c4c4] bg-white">
       <div
-        className={`flex flex-shrink-0 min-w-[50px] items-center justify-center ${labelBg} py-4 px-3 text-white text-xs font-bold uppercase tracking-wider`}
+        className={`${labelStripClass} ${labelBg}`}
         style={{
           writingMode: 'vertical-rl',
           textOrientation: 'mixed',

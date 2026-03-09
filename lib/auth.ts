@@ -1,5 +1,6 @@
 import {
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   onAuthStateChanged,
   type User
@@ -23,6 +24,29 @@ export async function checkIsAdmin(uid: string): Promise<boolean> {
 
 export async function loginUser(email: string, password: string): Promise<User> {
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  const user = userCredential.user;
+  const isAdmin = await checkIsAdmin(user.uid);
+  if (!isAdmin) {
+    await signOut(auth);
+    throw new Error('NO_ADMIN_ACCESS');
+  }
+  return user;
+}
+
+export async function loginWithPin(pin: string): Promise<User> {
+  const res = await fetch('/api/auth/pin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin: pin.trim() })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'PIN incorrecto');
+  }
+  if (!data.token) {
+    throw new Error('Error al obtener sesión');
+  }
+  const userCredential = await signInWithCustomToken(auth, data.token);
   const user = userCredential.user;
   const isAdmin = await checkIsAdmin(user.uid);
   if (!isAdmin) {
