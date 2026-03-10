@@ -47,7 +47,13 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
   return blocks;
 }
 
-function SectionSlide({ label, lines, className = '' }: { label: string; lines: string[]; className?: string }) {
+const LINE_HEIGHT_MIN = 1;
+const LINE_HEIGHT_MAX = 2;
+const LINE_HEIGHT_STEP = 0.1;
+const LINE_HEIGHT_DEFAULT = 1.2;
+const STORAGE_KEY_LINE_HEIGHT = 'dashboard-line-height';
+
+function SectionSlide({ label, lines, lineHeight = LINE_HEIGHT_DEFAULT, className = '' }: { label: string; lines: string[]; lineHeight?: number; className?: string }) {
   const items = lines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•\-]\s*/, ''));
@@ -90,14 +96,15 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
                   )}
                   {listLines.length > 0 && (
                     <ul
-                      className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-1 sm:gap-y-1.5 ${
+                      className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 ${
                         isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
                       }`}
                     >
                       {listLines.map((item, i) => (
                         <li
                           key={i}
-                          className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] leading-snug sm:leading-normal md:leading-relaxed py-0.5 sm:py-1 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-1 sm:before:mr-2"
+                          className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-1 sm:before:mr-2"
+                          style={{ lineHeight: lineHeight }}
                         >
                           {item}
                         </li>
@@ -177,11 +184,29 @@ export default function DashboardPage() {
   const [showControls, setShowControls] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
   const [isDark, setIsDark] = useState(true);
+  const [lineHeightList, setLineHeightList] = useState(LINE_HEIGHT_DEFAULT);
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setIsDark(getSavedTheme());
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_LINE_HEIGHT);
+      if (stored !== null) {
+        const n = parseFloat(stored);
+        if (!Number.isNaN(n) && n >= LINE_HEIGHT_MIN && n <= LINE_HEIGHT_MAX) setLineHeightList(n);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_LINE_HEIGHT, String(lineHeightList));
+    } catch {
+      // ignore
+    }
+  }, [lineHeightList]);
 
   useEffect(() => {
     applyTheme(isDark);
@@ -410,26 +435,59 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
       <header className="bg-white dark:bg-gray-900 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
-        <div className="flex flex-col sm:grid sm:grid-cols-3 items-center w-full max-w-[900px] mx-auto gap-2 sm:gap-4">
-          <p className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-left order-2 sm:order-1" title={currentDateFull}>
-            <span className="hidden sm:inline">{weekday}<br />{datePart}</span>
-            <span className="sm:hidden">{weekday}, {datePart}</span>
+        <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center w-full max-w-full sm:max-w-[900px] mx-auto gap-2 sm:gap-4 min-w-0">
+          <p className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-left order-2 sm:order-1 min-w-0 overflow-hidden" title={currentDateFull}>
+            <span className="hidden sm:block truncate">{weekday}<br />{datePart}</span>
+            <span className="sm:hidden block truncate">{weekday}, {datePart}</span>
           </p>
-          <div className="flex justify-center order-1 sm:order-2">
+          <div className="flex justify-center items-center order-1 sm:order-2 min-w-0 shrink-0 overflow-hidden">
             <Image
               src="/sollte_negro_full.png"
               alt="Sollte Logo"
               width={180}
               height={72}
-              className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto dark:invert"
+              className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto max-w-[45vw] sm:max-w-[200px] dark:invert object-contain"
               unoptimized
             />
           </div>
-          <p className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-right tabular-nums order-3">
+          <p className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-right tabular-nums order-3 min-w-0 overflow-hidden truncate">
             {currentTime}
           </p>
         </div>
       </header>
+
+      <div
+        className={`fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-50 flex flex-col gap-3 rounded-2xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px] transition-opacity duration-300 ${
+          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        role="group"
+        aria-label="Ajuste de interlineado"
+      >
+        <p className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+          Interlineado
+        </p>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setLineHeightList((v) => Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10))}
+            className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+            aria-label="Reducir interlineado"
+          >
+            −
+          </button>
+          <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+            {lineHeightList.toFixed(1)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setLineHeightList((v) => Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10))}
+            className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+            aria-label="Aumentar interlineado"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
       <button
         type="button"
@@ -540,24 +598,24 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={goPrev}
-                    className={`absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/90 text-[#333] shadow-md hover:bg-white active:scale-95 transition-all duration-300 ${
+                    className={`absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-28 h-56 sm:w-32 sm:h-64 md:w-40 md:h-80 rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200 ${
                       showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                     aria-label="Sección anterior"
                   >
-                    <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <polyline points="15 18 9 12 15 6" />
                     </svg>
                   </button>
                   <button
                     type="button"
                     onClick={goNext}
-                    className={`absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/90 dark:bg-gray-700/90 text-[#333] dark:text-gray-200 shadow-md hover:bg-white dark:hover:bg-gray-600 active:scale-95 transition-all duration-300 ${
+                    className={`absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-28 h-56 sm:w-32 sm:h-64 md:w-40 md:h-80 rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200 ${
                       showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                     aria-label="Sección siguiente"
                   >
-                    <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <polyline points="9 18 15 12 9 6" />
                     </svg>
                   </button>
@@ -586,7 +644,7 @@ export default function DashboardPage() {
                     }
                     aria-hidden={useInfinite ? index !== currentIndex : undefined}
                   >
-                    <SectionSlide label={section.label} lines={section.lines} />
+                    <SectionSlide label={section.label} lines={section.lines} lineHeight={lineHeightList} />
                   </div>
                 ))}
               </div>
