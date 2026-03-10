@@ -23,7 +23,7 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
 
   return (
     <div className="mb-6">
-      <div className="bg-white rounded-lg border border-[#e0e0e0] p-6 mb-6">
+      <div className="bg-white rounded-lg border border-[#e0e0e0] p-6 mb-6 hidden">
         <h2 className="font-bold text-xl text-[#333] mb-1">{title}</h2>
         {description && (
           <p className="text-[#666] text-sm leading-relaxed m-0">{description}</p>
