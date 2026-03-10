@@ -436,31 +436,30 @@ export default function DashboardPage() {
         </svg>
       </button>
 
+      {useInfinite && (
+        <button
+          type="button"
+          onClick={() => setIsPaused((p) => !p)}
+          className={`fixed top-24 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 ${
+            showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          aria-label={isPaused ? 'Reanudar carrusel' : 'Pausar carrusel'}
+          aria-pressed={isPaused}
+        >
+          {isPaused ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+            </svg>
+          )}
+        </button>
+      )}
+
       <div className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-auto">
         <main className="flex-1 flex flex-col justify-center w-full max-w-[80vw] mx-auto py-6 min-h-0">
-        <div className="mb-6 flex items-start justify-end gap-3">
-          {useInfinite && (
-            <button
-              type="button"
-              onClick={() => setIsPaused((p) => !p)}
-              className={`shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-[#4A90E2] text-white hover:bg-[#3A7BC8] active:scale-95 transition-all duration-300 ${
-                showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-              aria-label={isPaused ? 'Reanudar carrusel' : 'Pausar carrusel'}
-              aria-pressed={isPaused}
-            >
-              {isPaused ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                </svg>
-              )}
-            </button>
-          )}
-        </div>
 
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
@@ -554,34 +553,6 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
-              {useInfinite && (
-                <div
-                  className={`flex justify-center gap-2 mt-4 transition-opacity duration-300 ${
-                    showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                  }`}
-                  role="tablist"
-                  aria-label="Indicadores de sección"
-                >
-                  {carouselSections.map((_, i) => {
-                    const isActive = currentIndex === i || (currentIndex === len && i === 0);
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setCurrentIndex(i)}
-                        role="tab"
-                        aria-selected={isActive}
-                        aria-label={`Ver sección ${i + 1} de ${len}`}
-                        className={`w-3 h-3 rounded-full transition-colors ${
-                          isActive
-                            ? 'bg-[#4A90E2] scale-110'
-                            : 'bg-[#ccc] hover:bg-[#999]'
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </>
         )}
