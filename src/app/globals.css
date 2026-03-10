@@ -12,3 +12,8 @@ body {
   color: #333;
   min-height: 100vh;
 }
+
+html.dark body {
+  background-color: #1a1a1a;
+  color: #e5e5e5;
+}
