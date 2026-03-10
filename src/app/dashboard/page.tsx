@@ -62,15 +62,15 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
   return (
     <div className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-gray-800 min-h-0 ${isWarmup ? 'max-w-4xl w-full mx-auto' : ''} ${className}`}>
       <div
-        className={`flex flex-shrink-0 w-24 min-w-24 items-center justify-center py-4 px-3 text-white text-6xl font-bold uppercase tracking-wider ${labelBg}`}
+        className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
         style={labelStripStyle}
       >
         {label}
       </div>
-      <div className={`flex-1 min-h-0 border-l p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}>
+      <div className={`flex-1 min-h-0 border-l p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}>
         {restLines.length > 0 ? (
           <>
-            <p className="font-semibold mb-4 text-[#333] dark:text-gray-200 text-5xl">
+            <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
               {isMetcon && blocks[0]?.title === 'Crossfit' ? `Crossfit - ${firstLine}` : firstLine}
             </p>
             {blocks.map((block, bi) => {
@@ -81,23 +81,23 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
               const listLines = isMetconBlock && isSollteBlock && block.lines.length > 0 ? block.lines.slice(1) : block.lines;
               const sectionTitle = isMetconBlock && !isCrossfitBlock && block.title && (isSollteBlock && titleLine ? `${block.title} - ${titleLine}` : block.title);
               return (
-                <div key={bi} className={bi > 0 ? 'mt-4' : ''}>
+                <div key={bi} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
                   {!isMetcon && block.title && (
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-5xl mb-2">{block.title}</p>
+                    <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{block.title}</p>
                   )}
                   {isMetconBlock && sectionTitle && (
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-5xl mb-2">{sectionTitle}</p>
+                    <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{sectionTitle}</p>
                   )}
                   {listLines.length > 0 && (
                     <ul
-                      className={`list-none p-0 m-0 grid gap-x-6 gap-y-0.5 ${
-                        isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-2' : 'grid-cols-3'
+                      className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-1 sm:gap-y-1.5 ${
+                        isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
                       }`}
                     >
                       {listLines.map((item, i) => (
                         <li
                           key={i}
-                          className="text-[#333] dark:text-gray-200 text-[2.5rem] leading-relaxed py-0.5 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-2"
+                          className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] leading-snug sm:leading-normal md:leading-relaxed py-0.5 sm:py-1 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-1 sm:before:mr-2"
                         >
                           {item}
                         </li>
@@ -109,7 +109,7 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
             })}
           </>
         ) : (
-          <p className="text-[#333] dark:text-gray-200 text-5xl">{firstLine}</p>
+          <p className="text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">{firstLine}</p>
         )}
       </div>
     </div>
@@ -409,24 +409,23 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
-      <header className="bg-white dark:bg-gray-900 py-4 px-6 shadow-sm shrink-0">
-        <div className="grid grid-cols-3 items-center w-full max-w-[900px] mx-auto gap-4">
-          <p className="text-[#333] dark:text-gray-200 text-2xl font-medium" title={currentDateFull}>
-            {weekday}
-            <br />
-            {datePart}
+      <header className="bg-white dark:bg-gray-900 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
+        <div className="flex flex-col sm:grid sm:grid-cols-3 items-center w-full max-w-[900px] mx-auto gap-2 sm:gap-4">
+          <p className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-left order-2 sm:order-1" title={currentDateFull}>
+            <span className="hidden sm:inline">{weekday}<br />{datePart}</span>
+            <span className="sm:hidden">{weekday}, {datePart}</span>
           </p>
-          <div className="flex justify-center">
+          <div className="flex justify-center order-1 sm:order-2">
             <Image
               src="/sollte_negro_full.png"
               alt="Sollte Logo"
               width={180}
               height={72}
-              className="h-16 w-auto dark:invert"
+              className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto dark:invert"
               unoptimized
             />
           </div>
-          <p className="text-[#333] dark:text-gray-200 text-2xl font-medium text-right tabular-nums">
+          <p className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-right tabular-nums order-3">
             {currentTime}
           </p>
         </div>
@@ -435,13 +434,13 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={() => setIsDark((d) => !d)}
-        className={`fixed bottom-6 right-24 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
+        className={`fixed bottom-4 sm:bottom-6 right-16 sm:right-24 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
           showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
         }`}
         aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
       >
         {isDark ? (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="5" />
             <line x1="12" y1="1" x2="12" y2="3" />
             <line x1="12" y1="21" x2="12" y2="23" />
@@ -453,7 +452,7 @@ export default function DashboardPage() {
             <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
           </svg>
         ) : (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
         )}
@@ -462,12 +461,12 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={handleLogout}
-        className={`fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
+        className={`fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
           showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
         }`}
         aria-label="Cerrar sesión"
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
           <polyline points="16 17 21 12 16 7" />
           <line x1="21" y1="12" x2="9" y2="12" />
@@ -478,18 +477,18 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setIsPaused((p) => !p)}
-          className={`fixed top-24 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 ${
+          className={`fixed top-20 sm:top-24 right-3 sm:right-6 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 ${
             showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
           aria-label={isPaused ? 'Reanudar carrusel' : 'Pausar carrusel'}
           aria-pressed={isPaused}
         >
           {isPaused ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M8 5v14l11-7z" />
             </svg>
           ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
               <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
             </svg>
           )}
@@ -497,25 +496,25 @@ export default function DashboardPage() {
       )}
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <main className="flex-1 flex flex-col min-h-0 w-full max-w-[95vw] mx-auto p-[0.3rem] overflow-hidden relative">
+        <main className="flex-1 flex flex-col min-h-0 w-full max-w-[98vw] sm:max-w-[95vw] mx-auto p-1 sm:p-[0.3rem] overflow-hidden relative">
 
         {loading && (
           <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-            <div className="w-10 h-10 border-4 border-[#f3f3f3] dark:border-gray-700 border-t-[#4A90E2] rounded-full animate-spin" />
-            <p className="mt-4 text-[#666] dark:text-gray-400 text-3xl">Cargando WODs...</p>
+            <div className="w-8 h-8 sm:w-10 sm:h-10 border-4 border-[#f3f3f3] dark:border-gray-700 border-t-[#4A90E2] rounded-full animate-spin" />
+            <p className="mt-3 sm:mt-4 text-[#666] dark:text-gray-400 text-base sm:text-xl md:text-2xl lg:text-3xl">Cargando WODs...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-[#fee] dark:bg-red-900/30 text-[#c33] dark:text-red-300 p-4 rounded-lg mb-4 border-l-4 border-[#c33] dark:border-red-500 text-3xl">
+          <div className="bg-[#fee] dark:bg-red-900/30 text-[#c33] dark:text-red-300 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4 border-l-4 border-[#c33] dark:border-red-500 text-sm sm:text-base md:text-xl lg:text-3xl">
             {error}
           </div>
         )}
 
         {!loading && !error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center w-full overflow-hidden p-[0.3rem]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center w-full overflow-hidden p-1 sm:p-[0.3rem]">
             {showFallbackMessage && (
-              <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 rounded-lg mb-4 text-center text-3xl">
+              <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-2 sm:p-3 md:p-4 rounded-lg mb-2 sm:mb-3 md:mb-4 text-center text-xs sm:text-sm md:text-xl lg:text-3xl">
                 ⚠️ No hay WOD programado para hoy.{' '}
                 {wods.length > 1
                   ? 'Mostrando WODs recientes.'
@@ -523,10 +522,10 @@ export default function DashboardPage() {
               </div>
             )}
             {currentWod && (
-              <div className="bg-white rounded-lg border border-[#c4c4c4] p-6 mb-6 hidden">
-                <h2 className="font-bold text-9xl text-[#333] mb-2">{currentWod.title || 'WOD'}</h2>
+              <div className="bg-white rounded-lg border border-[#c4c4c4] p-3 sm:p-4 md:p-6 mb-3 sm:mb-4 md:mb-6 hidden">
+                <h2 className="font-bold text-2xl sm:text-4xl md:text-6xl lg:text-9xl text-[#333] mb-1 sm:mb-2">{currentWod.title || 'WOD'}</h2>
                 {currentWod.description && (
-                  <p className="text-[#666] text-8xl leading-relaxed m-0">{currentWod.description}</p>
+                  <p className="text-[#666] text-xl sm:text-3xl md:text-5xl lg:text-8xl leading-relaxed m-0">{currentWod.description}</p>
                 )}
               </div>
             )}
@@ -541,24 +540,24 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={goPrev}
-                    className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 text-[#333] shadow-md hover:bg-white active:scale-95 transition-all duration-300 ${
+                    className={`absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/90 text-[#333] shadow-md hover:bg-white active:scale-95 transition-all duration-300 ${
                       showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                     aria-label="Sección anterior"
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="15 18 9 12 15 6" />
                     </svg>
                   </button>
                   <button
                     type="button"
                     onClick={goNext}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 dark:bg-gray-700/90 text-[#333] dark:text-gray-200 shadow-md hover:bg-white dark:hover:bg-gray-600 active:scale-95 transition-all duration-300 ${
+                    className={`absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/90 dark:bg-gray-700/90 text-[#333] dark:text-gray-200 shadow-md hover:bg-white dark:hover:bg-gray-600 active:scale-95 transition-all duration-300 ${
                       showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                     aria-label="Sección siguiente"
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="9 18 15 12 9 6" />
                     </svg>
                   </button>
@@ -578,7 +577,7 @@ export default function DashboardPage() {
                 {slidesToRender.map((section, index) => (
                   <div
                     key={index}
-                    className="flex-[0_0_100%] min-w-0 px-0"
+                    className="flex-[0_0_100%] min-w-0 px-1 sm:px-0"
                     role="group"
                     aria-label={
                       useInfinite
