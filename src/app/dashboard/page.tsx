@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { onAuthChange, logoutUser, checkIsAdmin } from '@/lib/auth';
+import { getSavedTheme, applyTheme } from '@/components/ThemeInit';
 import type { WodDoc } from '@/components/WodCard';
 
 const labelStripStyle: React.CSSProperties = {
@@ -46,7 +47,7 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
   return blocks;
 }
 
-function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
+function SectionSlide({ label, lines, className = '' }: { label: string; lines: string[]; className?: string }) {
   const items = lines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•\-]\s*/, ''));
@@ -58,17 +59,17 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
   const blocks = buildBlocks(restLines);
 
   return (
-    <div className="mb-6 flex rounded-lg overflow-hidden border border-[#c4c4c4] bg-white">
+    <div className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-gray-800 min-h-0 ${className}`}>
       <div
-        className={`flex flex-shrink-0 w-24 min-w-24 items-center justify-center py-4 px-3 text-white text-4xl font-bold uppercase tracking-wider ${labelBg}`}
+        className={`flex flex-shrink-0 w-24 min-w-24 items-center justify-center py-4 px-3 text-white text-5xl font-bold uppercase tracking-wider ${labelBg}`}
         style={labelStripStyle}
       >
         {label}
       </div>
-      <div className={`flex-1 border-l p-6 ${isMetcon ? 'border-black' : 'border-[#e0e0e0]'}`}>
+      <div className={`flex-1 min-h-0 border-l p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}>
         {restLines.length > 0 ? (
           <>
-            <p className="font-semibold mb-4 text-[#333] text-3xl">
+            <p className="font-semibold mb-4 text-[#333] dark:text-gray-200 text-3xl">
               {isMetcon && blocks[0]?.title === 'Crossfit' ? `Crossfit - ${firstLine}` : firstLine}
             </p>
             {blocks.map((block, bi) => {
@@ -81,21 +82,21 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
               return (
                 <div key={bi} className={bi > 0 ? 'mt-4' : ''}>
                   {!isMetcon && block.title && (
-                    <p className="font-semibold text-[#333] text-3xl mb-2">{block.title}</p>
+                    <p className="font-semibold text-[#333] dark:text-gray-200 text-4xl mb-2">{block.title}</p>
                   )}
                   {isMetconBlock && sectionTitle && (
-                    <p className="font-semibold text-[#333] text-3xl mb-2">{sectionTitle}</p>
+                    <p className="font-semibold text-[#333] dark:text-gray-200 text-4xl mb-2">{sectionTitle}</p>
                   )}
                   {listLines.length > 0 && (
                     <ul
                       className={`list-none p-0 m-0 grid gap-x-6 gap-y-0.5 ${
-                        listLines.length >= 8 ? 'grid-cols-3' : 'grid-cols-2'
+                        listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-2' : 'grid-cols-3'
                       }`}
                     >
                       {listLines.map((item, i) => (
                         <li
                           key={i}
-                          className="text-[#333] text-3xl leading-relaxed py-0.5 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
+                          className="text-[#333] dark:text-gray-200 text-3xl leading-relaxed py-0.5 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-2"
                         >
                           {item}
                         </li>
@@ -107,7 +108,7 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
             })}
           </>
         ) : (
-          <p className="text-[#333] text-3xl">{firstLine}</p>
+          <p className="text-[#333] dark:text-gray-200 text-4xl">{firstLine}</p>
         )}
       </div>
     </div>
@@ -174,7 +175,16 @@ export default function DashboardPage() {
   const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
+  const [isDark, setIsDark] = useState(false);
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setIsDark(getSavedTheme());
+  }, []);
+
+  useEffect(() => {
+    applyTheme(isDark);
+  }, [isDark]);
   const currentWod = wods[0];
   const sections = getSections(currentWod);
   const carouselSections = sections.filter((s): s is Extract<WodSection, { type: 'section' }> => s.type === 'section');
@@ -397,10 +407,10 @@ export default function DashboardPage() {
   }, [goPrev, goNext]);
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] flex flex-col">
-      <header className="bg-white py-4 px-6 shadow-sm shrink-0">
+    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
+      <header className="bg-white dark:bg-gray-900 py-4 px-6 shadow-sm shrink-0">
         <div className="grid grid-cols-3 items-center w-full max-w-[900px] mx-auto gap-4">
-          <p className="text-[#333] text-xl font-medium" title={currentDateFull}>
+          <p className="text-[#333] dark:text-gray-200 text-2xl font-medium" title={currentDateFull}>
             {weekday}
             <br />
             {datePart}
@@ -411,15 +421,42 @@ export default function DashboardPage() {
               alt="Sollte Logo"
               width={180}
               height={72}
-              className="h-16 w-auto"
+              className="h-16 w-auto dark:invert"
               unoptimized
             />
           </div>
-          <p className="text-[#333] text-xl font-medium text-right tabular-nums">
+          <p className="text-[#333] dark:text-gray-200 text-xl font-medium text-right tabular-nums">
             {currentTime}
           </p>
         </div>
       </header>
+
+      <button
+        type="button"
+        onClick={() => setIsDark((d) => !d)}
+        className={`fixed bottom-6 right-24 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
+          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
+        }`}
+        aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      >
+        {isDark ? (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="5" />
+            <line x1="12" y1="1" x2="12" y2="3" />
+            <line x1="12" y1="21" x2="12" y2="23" />
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+            <line x1="1" y1="12" x2="3" y2="12" />
+            <line x1="21" y1="12" x2="23" y2="12" />
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+          </svg>
+        ) : (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        )}
+      </button>
 
       <button
         type="button"
@@ -458,26 +495,26 @@ export default function DashboardPage() {
         </button>
       )}
 
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-auto">
-        <main className="flex-1 flex flex-col justify-center w-full max-w-[80vw] mx-auto py-6 min-h-0">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-hidden">
+        <main className="flex-1 flex flex-col w-full max-w-[90vw] mx-auto p-[0.3rem] min-h-0 overflow-hidden">
 
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-10 h-10 border-4 border-[#f3f3f3] border-t-[#4A90E2] rounded-full animate-spin" />
-            <p className="mt-4 text-[#666] text-xl">Cargando WODs...</p>
+            <div className="w-10 h-10 border-4 border-[#f3f3f3] dark:border-gray-700 border-t-[#4A90E2] rounded-full animate-spin" />
+            <p className="mt-4 text-[#666] dark:text-gray-400 text-xl">Cargando WODs...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-[#fee] text-[#c33] p-4 rounded-lg mb-4 border-l-4 border-[#c33] text-xl">
+          <div className="bg-[#fee] dark:bg-red-900/30 text-[#c33] dark:text-red-300 p-4 rounded-lg mb-4 border-l-4 border-[#c33] dark:border-red-500 text-xl">
             {error}
           </div>
         )}
 
         {!loading && !error && (
-          <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full">
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full overflow-hidden">
             {showFallbackMessage && (
-              <div className="bg-[#fff3cd] text-[#856404] p-4 rounded-lg mb-4 text-center text-xl">
+              <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 rounded-lg mb-4 text-center text-xl">
                 ⚠️ No hay WOD programado para hoy.{' '}
                 {wods.length > 1
                   ? 'Mostrando WODs recientes.'
@@ -486,14 +523,14 @@ export default function DashboardPage() {
             )}
             {currentWod && (
               <div className="bg-white rounded-lg border border-[#c4c4c4] p-6 mb-6 hidden">
-                <h2 className="font-bold text-5xl text-[#333] mb-2">{currentWod.title || 'WOD'}</h2>
+                <h2 className="font-bold text-9xl text-[#333] mb-2">{currentWod.title || 'WOD'}</h2>
                 {currentWod.description && (
-                  <p className="text-[#666] text-4xl leading-relaxed m-0">{currentWod.description}</p>
+                  <p className="text-[#666] text-8xl leading-relaxed m-0">{currentWod.description}</p>
                 )}
               </div>
             )}
             <div
-              className="relative overflow-hidden w-full flex items-center"
+              className="relative overflow-hidden w-full max-w-9xl mx-auto flex flex-col"
               role="region"
               aria-roledescription="carrusel"
               aria-label="Carrusel de secciones del WOD del día"
@@ -515,7 +552,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={goNext}
-                    className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 text-[#333] shadow-md hover:bg-white active:scale-95 transition-all duration-300 ${
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 dark:bg-gray-700/90 text-[#333] dark:text-gray-200 shadow-md hover:bg-white dark:hover:bg-gray-600 active:scale-95 transition-all duration-300 ${
                       showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
                     }`}
                     aria-label="Sección siguiente"
@@ -527,7 +564,7 @@ export default function DashboardPage() {
                 </>
               )}
               <div
-                className="flex"
+                className="flex h-full"
                 style={{
                   transform: `translateX(-${currentIndex * 100}%)`,
                   transition:
@@ -540,7 +577,7 @@ export default function DashboardPage() {
                 {slidesToRender.map((section, index) => (
                   <div
                     key={index}
-                    className="flex-[0_0_100%] min-w-0 px-0"
+                    className="flex-[0_0_100%] min-w-0 min-h-0 h-full px-0"
                     role="group"
                     aria-label={
                       useInfinite
@@ -549,7 +586,7 @@ export default function DashboardPage() {
                     }
                     aria-hidden={useInfinite ? index !== currentIndex : undefined}
                   >
-                    <SectionSlide label={section.label} lines={section.lines} />
+                    <SectionSlide label={section.label} lines={section.lines} className="h-full" />
                   </div>
                 ))}
               </div>
