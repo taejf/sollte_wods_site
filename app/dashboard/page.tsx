@@ -29,7 +29,7 @@ function buildBlocks(lines: string[]): { subtitle: string | null; lines: string[
         blocks.push({ subtitle: currentSubtitle === null ? 'Crossfit' : currentSubtitle, lines: currentLines });
         currentLines = [];
       }
-      currentSubtitle = /^sollte\s+funcional:?/i.test(t) ? 'Sollte funcional:' : 'Sollte functional:';
+      currentSubtitle = /^sollte\s+funcional:?/i.test(t) ? 'Sollte funcional' : 'Sollte funcional';
     } else if (isAccesorios) {
       if (currentLines.length > 0) {
         blocks.push({ subtitle: currentSubtitle, lines: currentLines });
