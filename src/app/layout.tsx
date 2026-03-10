@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Heebo } from 'next/font/google';
+import ThemeInit from '@/components/ThemeInit';
 import './globals.css';
 
 const heebo = Heebo({
@@ -19,8 +20,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={`${heebo.variable} font-sans antialiased`}>
+        <ThemeInit />
         {children}
       </body>
     </html>
