@@ -19,6 +19,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "readline-sync": "^1.4.10",
     "@types/node": "^22.10.1",
     "@types/react": "^19.0.1",

@@ -4,18 +4,19 @@
     "": {
       "name": "sollte-wods-site",
       "dependencies": {
+        "bcryptjs": "^2.4.3",
         "firebase": "^11.2.0",
+        "firebase-admin": "^13.0.1",
         "next": "^15.0.3",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
       },
       "devDependencies": {
+        "@types/bcryptjs": "^2.4.6",
         "@types/node": "^22.10.1",
         "@types/react": "^19.0.1",
         "@types/react-dom": "^19.0.1",
         "autoprefixer": "^10.4.20",
-        "bcryptjs": "^2.4.3",
-        "firebase-admin": "^13.0.1",
         "postcss": "^8.4.49",
         "readline-sync": "^1.4.10",
         "tailwindcss": "^3.4.15",
@@ -245,6 +246,8 @@
     "@swc/helpers": ["@swc/helpers@0.5.15", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g=="],
 
     "@tootallnate/once": ["@tootallnate/once@2.0.0", "", {}, "sha512-XCuKFP5PS55gnMVu3dty8KPatLqUoy/ZYzDzAGCQ8JNFCkLXzmI7vNHCR+XpbZaMWQK/vQubr7PkYq8g470J/A=="],
+
+    "@types/bcryptjs": ["@types/bcryptjs@2.4.6", "", {}, "sha512-9xlo6R2qDs5uixm0bcIqCeMCE6HiQsIyel9KQySStiyqNl2tnj2mP3DX1Nf56MD6KMenNNlBBsy3LJ7gUEQPXQ=="],
 
     "@types/caseless": ["@types/caseless@0.12.5", "", {}, "sha512-hWtVTC2q7hc7xZ/RLbxapMvDMgUnDvKvMOpKal4DrMyfGBUfB1oKaZlIRr6mJL+If3bAP6sV/QneGzF6tJjZDg=="],
 
