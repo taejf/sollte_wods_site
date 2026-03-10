@@ -14,10 +14,10 @@ const labelStripStyle: React.CSSProperties = {
   transform: 'rotate(180deg)'
 };
 
-function buildBlocks(lines: string[]): { subtitle: string | null; lines: string[] }[] {
-  const blocks: { subtitle: string | null; lines: string[] }[] = [];
+function buildBlocks(lines: string[]): { title: string | null; lines: string[] }[] {
+  const blocks: { title: string | null; lines: string[] }[] = [];
   let currentLines: string[] = [];
-  let currentSubtitle: string | null = null;
+  let currentTitle: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim();
@@ -26,22 +26,22 @@ function buildBlocks(lines: string[]): { subtitle: string | null; lines: string[
 
     if (isSollte) {
       if (currentLines.length > 0) {
-        blocks.push({ subtitle: currentSubtitle === null ? 'Crossfit' : currentSubtitle, lines: currentLines });
+        blocks.push({ title: currentTitle === null ? 'Crossfit' : currentTitle, lines: currentLines });
         currentLines = [];
       }
-      currentSubtitle = /^sollte\s+funcional:?/i.test(t) ? 'Sollte funcional' : 'Sollte funcional';
+      currentTitle = /^sollte\s+funcional:?/i.test(t) ? 'Sollte funcional' : 'Sollte funcional';
     } else if (isAccesorios) {
       if (currentLines.length > 0) {
-        blocks.push({ subtitle: currentSubtitle, lines: currentLines });
+        blocks.push({ title: currentTitle, lines: currentLines });
         currentLines = [];
       }
-      currentSubtitle = 'Accesorios:';
+      currentTitle = 'Accesorios:';
     } else {
       currentLines.push(t);
     }
   }
   if (currentLines.length > 0) {
-    blocks.push({ subtitle: currentSubtitle, lines: currentLines });
+    blocks.push({ title: currentTitle, lines: currentLines });
   }
   return blocks;
 }
@@ -60,7 +60,7 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
   return (
     <div className="mb-6 flex rounded-lg overflow-hidden border border-[#c4c4c4] bg-white">
       <div
-        className={`flex flex-shrink-0 w-16 min-w-16 items-center justify-center py-4 px-3 text-white text-lg font-bold uppercase tracking-wider ${labelBg}`}
+        className={`flex flex-shrink-0 w-24 min-w-24 items-center justify-center py-4 px-3 text-white text-4xl font-bold uppercase tracking-wider ${labelBg}`}
         style={labelStripStyle}
       >
         {label}
@@ -68,29 +68,46 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
       <div className={`flex-1 border-l p-6 ${isMetcon ? 'border-black' : 'border-[#e0e0e0]'}`}>
         {restLines.length > 0 ? (
           <>
-            <p className="font-semibold mb-4 text-[#333] text-xl">{firstLine}</p>
-            {blocks.map((block, bi) => (
-              <div key={bi} className={bi > 0 ? 'mt-4' : ''}>
-                {block.subtitle && (
-                  <p className="font-semibold text-[#4A90E2] text-lg mb-2">{block.subtitle}</p>
-                )}
-                {block.lines.length > 0 && (
-                  <ul className="list-none p-0 m-0 grid grid-cols-2 gap-x-6 gap-y-2">
-                    {block.lines.map((item, i) => (
-                      <li
-                        key={i}
-                        className="text-[#333] text-xl leading-relaxed py-2 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
-                      >
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
+            <p className="font-semibold mb-4 text-[#333] text-3xl">
+              {isMetcon && blocks[0]?.title === 'Crossfit' ? `Crossfit - ${firstLine}` : firstLine}
+            </p>
+            {blocks.map((block, bi) => {
+              const isMetconBlock = isMetcon && block.title;
+              const isSollteBlock = block.title === 'Sollte funcional';
+              const isCrossfitBlock = block.title === 'Crossfit';
+              const titleLine = isMetconBlock && isSollteBlock && block.lines.length > 0 ? block.lines[0] : null;
+              const listLines = isMetconBlock && isSollteBlock && block.lines.length > 0 ? block.lines.slice(1) : block.lines;
+              const sectionTitle = isMetconBlock && !isCrossfitBlock && block.title && (isSollteBlock && titleLine ? `${block.title} - ${titleLine}` : block.title);
+              return (
+                <div key={bi} className={bi > 0 ? 'mt-4' : ''}>
+                  {!isMetcon && block.title && (
+                    <p className="font-semibold text-[#333] text-3xl mb-2">{block.title}</p>
+                  )}
+                  {isMetconBlock && sectionTitle && (
+                    <p className="font-semibold text-[#333] text-3xl mb-2">{sectionTitle}</p>
+                  )}
+                  {listLines.length > 0 && (
+                    <ul
+                      className={`list-none p-0 m-0 grid gap-x-6 gap-y-2 ${
+                        listLines.length >= 8 ? 'grid-cols-3' : 'grid-cols-2'
+                      }`}
+                    >
+                      {listLines.map((item, i) => (
+                        <li
+                          key={i}
+                          className="text-[#333] text-3xl leading-relaxed py-2 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
+                        >
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
           </>
         ) : (
-          <p className="text-[#333] text-xl">{firstLine}</p>
+          <p className="text-[#333] text-3xl">{firstLine}</p>
         )}
       </div>
     </div>
@@ -154,8 +171,9 @@ export default function DashboardPage() {
   const [wods, setWods] = useState<WodDoc[]>([]);
   const [showFallbackMessage, setShowFallbackMessage] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(false);
+  const [currentTime, setCurrentTime] = useState('');
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentWod = wods[0];
   const sections = getSections(currentWod);
@@ -348,25 +366,58 @@ export default function DashboardPage() {
     }
   };
 
-  const currentDate = new Date().toLocaleDateString('es-ES', {
-    weekday: 'long',
+  const now = new Date();
+  const weekday = now.toLocaleDateString('es-ES', { weekday: 'long' });
+  const datePart = now.toLocaleDateString('es-ES', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
+  const currentDateFull = `${weekday}, ${datePart}`;
+
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    updateTime();
+    const id = setInterval(updateTime, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        goPrev();
+      } else if (e.key === 'ArrowRight') {
+        goNext();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [goPrev, goNext]);
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] flex flex-col">
       <header className="bg-white py-4 px-6 shadow-sm shrink-0">
-        <div className="flex justify-center items-center max-w-[600px] mx-auto">
-          <Image
-            src="/sollte_negro_full.png"
-            alt="Sollte Logo"
-            width={180}
-            height={72}
-            className="h-16 w-auto"
-            unoptimized
-          />
+        <div className="grid grid-cols-3 items-center w-full max-w-[900px] mx-auto gap-4">
+          <p className="text-[#333] text-xl font-medium" title={currentDateFull}>
+            {weekday}
+            <br />
+            {datePart}
+          </p>
+          <div className="flex justify-center">
+            <Image
+              src="/sollte_negro_full.png"
+              alt="Sollte Logo"
+              width={180}
+              height={72}
+              className="h-16 w-auto"
+              unoptimized
+            />
+          </div>
+          <p className="text-[#333] text-xl font-medium text-right tabular-nums">
+            {currentTime}
+          </p>
         </div>
       </header>
 
@@ -385,15 +436,9 @@ export default function DashboardPage() {
         </svg>
       </button>
 
-      <div className="flex-1 flex items-center justify-center">
-        <main className="max-w-[60vw] w-full mx-auto py-6">
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-10xl font-normal leading-tight text-[#333] mb-1">
-              <span className="font-extrabold text-5xl">WOD del día💪</span>
-            </h1>
-            <p className="text-[#999] text-lg font-light">{currentDate}</p>
-          </div>
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-auto">
+        <main className="flex-1 flex flex-col justify-center w-full max-w-[80vw] mx-auto py-6 min-h-0">
+        <div className="mb-6 flex items-start justify-end gap-3">
           {useInfinite && (
             <button
               type="button"
@@ -420,12 +465,12 @@ export default function DashboardPage() {
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-[#f3f3f3] border-t-[#4A90E2] rounded-full animate-spin" />
-            <p className="mt-4 text-[#666] text-base">Cargando WODs...</p>
+            <p className="mt-4 text-[#666] text-xl">Cargando WODs...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-[#fee] text-[#c33] p-4 rounded-lg mb-4 border-l-4 border-[#c33] text-base">
+          <div className="bg-[#fee] text-[#c33] p-4 rounded-lg mb-4 border-l-4 border-[#c33] text-xl">
             {error}
           </div>
         )}
@@ -433,7 +478,7 @@ export default function DashboardPage() {
         {!loading && !error && (
           <>
             {showFallbackMessage && (
-              <div className="bg-[#fff3cd] text-[#856404] p-4 rounded-lg mb-4 text-center text-base">
+              <div className="bg-[#fff3cd] text-[#856404] p-4 rounded-lg mb-4 text-center text-xl">
                 ⚠️ No hay WOD programado para hoy.{' '}
                 {wods.length > 1
                   ? 'Mostrando WODs recientes.'
@@ -441,10 +486,10 @@ export default function DashboardPage() {
               </div>
             )}
             {currentWod && (
-              <div className="bg-white rounded-lg border border-[#c4c4c4] p-6 mb-6">
-                <h2 className="font-bold text-4xl text-[#333] mb-2">{currentWod.title || 'WOD'}</h2>
+              <div className="bg-white rounded-lg border border-[#c4c4c4] p-6 mb-6 hidden">
+                <h2 className="font-bold text-5xl text-[#333] mb-2">{currentWod.title || 'WOD'}</h2>
                 {currentWod.description && (
-                  <p className="text-[#666] text-xl leading-relaxed m-0">{currentWod.description}</p>
+                  <p className="text-[#666] text-4xl leading-relaxed m-0">{currentWod.description}</p>
                 )}
               </div>
             )}
