@@ -55,13 +55,14 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
   const firstLine = items[0];
   const restLines = items.slice(1);
   const isMetcon = label.toUpperCase().startsWith('METCON');
+  const isWarmup = label.toUpperCase().startsWith('WARM');
   const labelBg = isMetcon ? 'bg-black' : 'bg-[#6E6E6E]';
   const blocks = buildBlocks(restLines);
 
   return (
-    <div className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-gray-800 min-h-0 ${className}`}>
+    <div className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-gray-800 min-h-0 ${isWarmup ? 'max-w-4xl w-full mx-auto' : ''} ${className}`}>
       <div
-        className={`flex flex-shrink-0 w-24 min-w-24 items-center justify-center py-4 px-3 text-white text-5xl font-bold uppercase tracking-wider ${labelBg}`}
+        className={`flex flex-shrink-0 w-24 min-w-24 items-center justify-center py-4 px-3 text-white text-6xl font-bold uppercase tracking-wider ${labelBg}`}
         style={labelStripStyle}
       >
         {label}
@@ -69,7 +70,7 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
       <div className={`flex-1 min-h-0 border-l p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}>
         {restLines.length > 0 ? (
           <>
-            <p className="font-semibold mb-4 text-[#333] dark:text-gray-200 text-3xl">
+            <p className="font-semibold mb-4 text-[#333] dark:text-gray-200 text-5xl">
               {isMetcon && blocks[0]?.title === 'Crossfit' ? `Crossfit - ${firstLine}` : firstLine}
             </p>
             {blocks.map((block, bi) => {
@@ -82,21 +83,21 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
               return (
                 <div key={bi} className={bi > 0 ? 'mt-4' : ''}>
                   {!isMetcon && block.title && (
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-4xl mb-2">{block.title}</p>
+                    <p className="font-semibold text-[#333] dark:text-gray-200 text-5xl mb-2">{block.title}</p>
                   )}
                   {isMetconBlock && sectionTitle && (
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-4xl mb-2">{sectionTitle}</p>
+                    <p className="font-semibold text-[#333] dark:text-gray-200 text-5xl mb-2">{sectionTitle}</p>
                   )}
                   {listLines.length > 0 && (
                     <ul
                       className={`list-none p-0 m-0 grid gap-x-6 gap-y-0.5 ${
-                        listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-2' : 'grid-cols-3'
+                        isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-2' : 'grid-cols-3'
                       }`}
                     >
                       {listLines.map((item, i) => (
                         <li
                           key={i}
-                          className="text-[#333] dark:text-gray-200 text-3xl leading-relaxed py-0.5 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-2"
+                          className="text-[#333] dark:text-gray-200 text-[2.5rem] leading-relaxed py-0.5 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-2"
                         >
                           {item}
                         </li>
@@ -108,7 +109,7 @@ function SectionSlide({ label, lines, className = '' }: { label: string; lines: 
             })}
           </>
         ) : (
-          <p className="text-[#333] dark:text-gray-200 text-4xl">{firstLine}</p>
+          <p className="text-[#333] dark:text-gray-200 text-5xl">{firstLine}</p>
         )}
       </div>
     </div>
@@ -175,7 +176,7 @@ export default function DashboardPage() {
   const [isPaused, setIsPaused] = useState(true);
   const [showControls, setShowControls] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -425,7 +426,7 @@ export default function DashboardPage() {
               unoptimized
             />
           </div>
-          <p className="text-[#333] dark:text-gray-200 text-xl font-medium text-right tabular-nums">
+          <p className="text-[#333] dark:text-gray-200 text-2xl font-medium text-right tabular-nums">
             {currentTime}
           </p>
         </div>
@@ -495,26 +496,26 @@ export default function DashboardPage() {
         </button>
       )}
 
-      <div className="flex-1 flex flex-col items-center justify-center min-h-0 overflow-hidden">
-        <main className="flex-1 flex flex-col w-full max-w-[90vw] mx-auto p-[0.3rem] min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <main className="flex-1 flex flex-col min-h-0 w-full max-w-[95vw] mx-auto p-[0.3rem] overflow-hidden relative">
 
         {loading && (
-          <div className="flex flex-col items-center justify-center py-12">
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0">
             <div className="w-10 h-10 border-4 border-[#f3f3f3] dark:border-gray-700 border-t-[#4A90E2] rounded-full animate-spin" />
-            <p className="mt-4 text-[#666] dark:text-gray-400 text-xl">Cargando WODs...</p>
+            <p className="mt-4 text-[#666] dark:text-gray-400 text-3xl">Cargando WODs...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-[#fee] dark:bg-red-900/30 text-[#c33] dark:text-red-300 p-4 rounded-lg mb-4 border-l-4 border-[#c33] dark:border-red-500 text-xl">
+          <div className="bg-[#fee] dark:bg-red-900/30 text-[#c33] dark:text-red-300 p-4 rounded-lg mb-4 border-l-4 border-[#c33] dark:border-red-500 text-3xl">
             {error}
           </div>
         )}
 
         {!loading && !error && (
-          <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full overflow-hidden">
+          <div className="absolute inset-0 flex flex-col items-center justify-center w-full overflow-hidden p-[0.3rem]">
             {showFallbackMessage && (
-              <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 rounded-lg mb-4 text-center text-xl">
+              <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 rounded-lg mb-4 text-center text-3xl">
                 ⚠️ No hay WOD programado para hoy.{' '}
                 {wods.length > 1
                   ? 'Mostrando WODs recientes.'
@@ -530,7 +531,7 @@ export default function DashboardPage() {
               </div>
             )}
             <div
-              className="relative overflow-hidden w-full max-w-9xl mx-auto flex flex-col"
+              className="relative overflow-hidden w-full max-w-9xl mx-auto flex flex-col items-center justify-center"
               role="region"
               aria-roledescription="carrusel"
               aria-label="Carrusel de secciones del WOD del día"
@@ -564,7 +565,7 @@ export default function DashboardPage() {
                 </>
               )}
               <div
-                className="flex h-full"
+                className="flex"
                 style={{
                   transform: `translateX(-${currentIndex * 100}%)`,
                   transition:
@@ -577,7 +578,7 @@ export default function DashboardPage() {
                 {slidesToRender.map((section, index) => (
                   <div
                     key={index}
-                    className="flex-[0_0_100%] min-w-0 min-h-0 h-full px-0"
+                    className="flex-[0_0_100%] min-w-0 px-0"
                     role="group"
                     aria-label={
                       useInfinite
@@ -586,7 +587,7 @@ export default function DashboardPage() {
                     }
                     aria-hidden={useInfinite ? index !== currentIndex : undefined}
                   >
-                    <SectionSlide label={section.label} lines={section.lines} className="h-full" />
+                    <SectionSlide label={section.label} lines={section.lines} />
                   </div>
                 ))}
               </div>
