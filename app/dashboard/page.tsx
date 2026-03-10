@@ -14,6 +14,38 @@ const labelStripStyle: React.CSSProperties = {
   transform: 'rotate(180deg)'
 };
 
+function buildBlocks(lines: string[]): { subtitle: string | null; lines: string[] }[] {
+  const blocks: { subtitle: string | null; lines: string[] }[] = [];
+  let currentLines: string[] = [];
+  let currentSubtitle: string | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    const isSollte = /^sollte\s+functional:?/i.test(t) || /^sollte\s+funcional:?/i.test(t);
+    const isAccesorios = /^accesorios:?/i.test(t);
+
+    if (isSollte) {
+      if (currentLines.length > 0) {
+        blocks.push({ subtitle: currentSubtitle === null ? 'Crossfit' : currentSubtitle, lines: currentLines });
+        currentLines = [];
+      }
+      currentSubtitle = /^sollte\s+funcional:?/i.test(t) ? 'Sollte funcional:' : 'Sollte functional:';
+    } else if (isAccesorios) {
+      if (currentLines.length > 0) {
+        blocks.push({ subtitle: currentSubtitle, lines: currentLines });
+        currentLines = [];
+      }
+      currentSubtitle = 'Accesorios:';
+    } else {
+      currentLines.push(t);
+    }
+  }
+  if (currentLines.length > 0) {
+    blocks.push({ subtitle: currentSubtitle, lines: currentLines });
+  }
+  return blocks;
+}
+
 function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
   const items = lines
     .filter((line) => line.trim())
@@ -23,31 +55,42 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
   const restLines = items.slice(1);
   const isMetcon = label.toUpperCase().startsWith('METCON');
   const labelBg = isMetcon ? 'bg-black' : 'bg-[#6E6E6E]';
+  const blocks = buildBlocks(restLines);
+
   return (
     <div className="mb-6 flex rounded-lg overflow-hidden border border-[#c4c4c4] bg-white">
       <div
-        className={`flex flex-shrink-0 w-14 min-w-14 items-center justify-center py-4 px-3 text-white text-xs font-bold uppercase tracking-wider ${labelBg}`}
+        className={`flex flex-shrink-0 w-16 min-w-16 items-center justify-center py-4 px-3 text-white text-lg font-bold uppercase tracking-wider ${labelBg}`}
         style={labelStripStyle}
       >
         {label}
       </div>
-      <div className={`flex-1 border-l p-5 ${isMetcon ? 'border-black' : 'border-[#e0e0e0]'}`}>
+      <div className={`flex-1 border-l p-6 ${isMetcon ? 'border-black' : 'border-[#e0e0e0]'}`}>
         {restLines.length > 0 ? (
           <>
-            <p className="font-semibold mb-3 text-[#333]">{firstLine}</p>
-            <ul className="list-none p-0 m-0">
-              {restLines.map((item, i) => (
-                <li
-                  key={i}
-                  className="text-[#333] text-sm leading-relaxed py-1 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>
+            <p className="font-semibold mb-4 text-[#333] text-xl">{firstLine}</p>
+            {blocks.map((block, bi) => (
+              <div key={bi} className={bi > 0 ? 'mt-4' : ''}>
+                {block.subtitle && (
+                  <p className="font-semibold text-[#4A90E2] text-lg mb-2">{block.subtitle}</p>
+                )}
+                {block.lines.length > 0 && (
+                  <ul className="list-none p-0 m-0 grid grid-cols-2 gap-x-6 gap-y-2">
+                    {block.lines.map((item, i) => (
+                      <li
+                        key={i}
+                        className="text-[#333] text-xl leading-relaxed py-2 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
           </>
         ) : (
-          <p className="text-[#333] text-sm">{firstLine}</p>
+          <p className="text-[#333] text-xl">{firstLine}</p>
         )}
       </div>
     </div>
@@ -313,15 +356,15 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5]">
-      <header className="bg-white py-4 px-6 shadow-sm">
+    <div className="min-h-screen bg-[#f5f5f5] flex flex-col">
+      <header className="bg-white py-4 px-6 shadow-sm shrink-0">
         <div className="flex justify-center items-center max-w-[600px] mx-auto">
           <Image
             src="/sollte_negro_full.png"
             alt="Sollte Logo"
-            width={120}
-            height={48}
-            className="h-12 w-auto"
+            width={180}
+            height={72}
+            className="h-16 w-auto"
             unoptimized
           />
         </div>
@@ -342,13 +385,14 @@ export default function DashboardPage() {
         </svg>
       </button>
 
-      <main className="max-w-[600px] mx-auto p-6">
+      <div className="flex-1 flex items-center justify-center">
+        <main className="max-w-[60vw] w-full mx-auto py-6">
         <div className="mb-6 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-normal leading-tight text-[#333] mb-1">
-              <span className="font-extrabold text-3xl">WOD del día💪</span>
+            <h1 className="text-10xl font-normal leading-tight text-[#333] mb-1">
+              <span className="font-extrabold text-5xl">WOD del día💪</span>
             </h1>
-            <p className="text-[#999] text-sm font-light">{currentDate}</p>
+            <p className="text-[#999] text-lg font-light">{currentDate}</p>
           </div>
           {useInfinite && (
             <button
@@ -376,12 +420,12 @@ export default function DashboardPage() {
         {loading && (
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-10 h-10 border-4 border-[#f3f3f3] border-t-[#4A90E2] rounded-full animate-spin" />
-            <p className="mt-4 text-[#666] text-sm">Cargando WODs...</p>
+            <p className="mt-4 text-[#666] text-base">Cargando WODs...</p>
           </div>
         )}
 
         {error && (
-          <div className="bg-[#fee] text-[#c33] p-4 rounded-lg mb-4 border-l-4 border-[#c33]">
+          <div className="bg-[#fee] text-[#c33] p-4 rounded-lg mb-4 border-l-4 border-[#c33] text-base">
             {error}
           </div>
         )}
@@ -389,7 +433,7 @@ export default function DashboardPage() {
         {!loading && !error && (
           <>
             {showFallbackMessage && (
-              <div className="bg-[#fff3cd] text-[#856404] p-4 rounded-lg mb-4 text-center">
+              <div className="bg-[#fff3cd] text-[#856404] p-4 rounded-lg mb-4 text-center text-base">
                 ⚠️ No hay WOD programado para hoy.{' '}
                 {wods.length > 1
                   ? 'Mostrando WODs recientes.'
@@ -398,9 +442,9 @@ export default function DashboardPage() {
             )}
             {currentWod && (
               <div className="bg-white rounded-lg border border-[#c4c4c4] p-6 mb-6">
-                <h2 className="font-bold text-xl text-[#333] mb-1">{currentWod.title || 'WOD'}</h2>
+                <h2 className="font-bold text-4xl text-[#333] mb-2">{currentWod.title || 'WOD'}</h2>
                 {currentWod.description && (
-                  <p className="text-[#666] text-sm leading-relaxed m-0">{currentWod.description}</p>
+                  <p className="text-[#666] text-xl leading-relaxed m-0">{currentWod.description}</p>
                 )}
               </div>
             )}
@@ -483,7 +527,7 @@ export default function DashboardPage() {
                         role="tab"
                         aria-selected={isActive}
                         aria-label={`Ver sección ${i + 1} de ${len}`}
-                        className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                        className={`w-3 h-3 rounded-full transition-colors ${
                           isActive
                             ? 'bg-[#4A90E2] scale-110'
                             : 'bg-[#ccc] hover:bg-[#999]'
@@ -496,7 +540,8 @@ export default function DashboardPage() {
             </div>
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
