@@ -88,14 +88,14 @@ function SectionSlide({ label, lines }: { label: string; lines: string[] }) {
                   )}
                   {listLines.length > 0 && (
                     <ul
-                      className={`list-none p-0 m-0 grid gap-x-6 gap-y-2 ${
+                      className={`list-none p-0 m-0 grid gap-x-6 gap-y-0.5 ${
                         listLines.length >= 8 ? 'grid-cols-3' : 'grid-cols-2'
                       }`}
                     >
                       {listLines.map((item, i) => (
                         <li
                           key={i}
-                          className="text-[#333] text-3xl leading-relaxed py-2 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
+                          className="text-[#333] text-3xl leading-relaxed py-0.5 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
                         >
                           {item}
                         </li>
@@ -475,7 +475,7 @@ export default function DashboardPage() {
         )}
 
         {!loading && !error && (
-          <>
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0 w-full">
             {showFallbackMessage && (
               <div className="bg-[#fff3cd] text-[#856404] p-4 rounded-lg mb-4 text-center text-xl">
                 ⚠️ No hay WOD programado para hoy.{' '}
@@ -493,7 +493,7 @@ export default function DashboardPage() {
               </div>
             )}
             <div
-              className="relative overflow-hidden w-full"
+              className="relative overflow-hidden w-full flex items-center"
               role="region"
               aria-roledescription="carrusel"
               aria-label="Carrusel de secciones del WOD del día"
@@ -554,7 +554,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-          </>
+          </div>
         )}
         </main>
       </div>
