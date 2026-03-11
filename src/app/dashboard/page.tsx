@@ -100,23 +100,51 @@ function SectionSlide({ label, lines, lineHeight = LINE_HEIGHT_DEFAULT, classNam
                   {isMetconBlock && sectionTitle && (
                     <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{sectionTitle}</p>
                   )}
-                  {listLines.length > 0 && (
-                    <ul
-                      className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 ${
-                        isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
-                      }`}
-                    >
-                      {listLines.map((item, i) => (
-                        <li
-                          key={i}
-                          className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5 before:content-['•_'] before:text-[#4A90E2] dark:before:text-[#60a5fa] before:font-bold before:mr-1 sm:before:mr-2"
-                          style={{ lineHeight: lineHeight }}
-                        >
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                  {listLines.length > 0 && (() => {
+                    const useGroupsOfThree = isMetconBlock && listLines.length >= 3 && listLines.length % 3 === 0;
+                    const chunks = useGroupsOfThree
+                      ? Array.from({ length: listLines.length / 3 }, (_, i) => listLines.slice(i * 3, i * 3 + 3))
+                      : [listLines];
+                    return useGroupsOfThree ? (
+                      <div
+                        className="grid gap-x-4 sm:gap-x-6 md:gap-x-8 gap-y-4 sm:gap-y-6"
+                        style={{ gridTemplateColumns: `repeat(${chunks.length}, minmax(0, 1fr))` }}
+                      >
+                        {chunks.map((chunk, ci) => (
+                          <ul
+                            key={ci}
+                            className="list-none p-0 m-0 flex flex-col gap-y-1 sm:gap-y-2"
+                          >
+                            {chunk.map((item, i) => (
+                              <li
+                                key={i}
+                                className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5"
+                                style={{ lineHeight: lineHeight }}
+                              >
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        ))}
+                      </div>
+                    ) : (
+                      <ul
+                        className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 ${
+                          isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                        }`}
+                      >
+                        {listLines.map((item, i) => (
+                          <li
+                            key={i}
+                            className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5"
+                            style={{ lineHeight: lineHeight }}
+                          >
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()}
                 </div>
               );
             })}
