@@ -53,6 +53,12 @@ const LINE_HEIGHT_STEP = 0.1;
 const LINE_HEIGHT_DEFAULT = 1.2;
 const STORAGE_KEY_LINE_HEIGHT = 'dashboard-line-height';
 
+const CARD_SCALE_MIN = 0.5;
+const CARD_SCALE_MAX = 1;
+const CARD_SCALE_STEP = 0.05;
+const CARD_SCALE_DEFAULT = 1;
+const STORAGE_KEY_CARD_SCALE = 'dashboard-card-scale';
+
 function SectionSlide({ label, lines, lineHeight = LINE_HEIGHT_DEFAULT, className = '' }: { label: string; lines: string[]; lineHeight?: number; className?: string }) {
   const items = lines
     .filter((line) => line.trim())
@@ -185,15 +191,21 @@ export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState('');
   const [isDark, setIsDark] = useState(true);
   const [lineHeightList, setLineHeightList] = useState(LINE_HEIGHT_DEFAULT);
+  const [cardScale, setCardScale] = useState(CARD_SCALE_DEFAULT);
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setIsDark(getSavedTheme());
     try {
-      const stored = localStorage.getItem(STORAGE_KEY_LINE_HEIGHT);
-      if (stored !== null) {
-        const n = parseFloat(stored);
+      const storedLine = localStorage.getItem(STORAGE_KEY_LINE_HEIGHT);
+      if (storedLine !== null) {
+        const n = parseFloat(storedLine);
         if (!Number.isNaN(n) && n >= LINE_HEIGHT_MIN && n <= LINE_HEIGHT_MAX) setLineHeightList(n);
+      }
+      const storedScale = localStorage.getItem(STORAGE_KEY_CARD_SCALE);
+      if (storedScale !== null) {
+        const s = parseFloat(storedScale);
+        if (!Number.isNaN(s) && s >= CARD_SCALE_MIN && s <= CARD_SCALE_MAX) setCardScale(s);
       }
     } catch {
       // ignore
@@ -207,6 +219,14 @@ export default function DashboardPage() {
       // ignore
     }
   }, [lineHeightList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_CARD_SCALE, String(cardScale));
+    } catch {
+      // ignore
+    }
+  }, [cardScale]);
 
   useEffect(() => {
     applyTheme(isDark);
@@ -457,35 +477,69 @@ export default function DashboardPage() {
       </header>
 
       <div
-        className={`fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-50 flex flex-col gap-3 rounded-2xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px] transition-opacity duration-300 ${
+        className={`fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-50 flex flex-row gap-3 transition-opacity duration-300 ${
           showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
-        role="group"
-        aria-label="Ajuste de interlineado"
       >
-        <p className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
-          Interlineado
-        </p>
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => setLineHeightList((v) => Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10))}
-            className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-            aria-label="Reducir interlineado"
-          >
-            −
-          </button>
-          <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
-            {lineHeightList.toFixed(1)}
-          </span>
-          <button
-            type="button"
-            onClick={() => setLineHeightList((v) => Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10))}
-            className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-            aria-label="Aumentar interlineado"
-          >
-            +
-          </button>
+        <div
+          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          role="group"
+          aria-label="Tamaño de tarjetas"
+        >
+          <p className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+            Tamaño tarjetas
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setCardScale((v) => Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100))}
+              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Reducir tamaño de tarjetas"
+            >
+              −
+            </button>
+            <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+              {cardScale.toFixed(2)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCardScale((v) => Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100))}
+              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Aumentar tamaño de tarjetas"
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <div
+          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          role="group"
+          aria-label="Ajuste de interlineado"
+        >
+          <p className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+            Interlineado
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setLineHeightList((v) => Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10))}
+              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Reducir interlineado"
+            >
+              −
+            </button>
+            <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+              {lineHeightList.toFixed(1)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLineHeightList((v) => Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10))}
+              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Aumentar interlineado"
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
 
@@ -635,7 +689,7 @@ export default function DashboardPage() {
                 {slidesToRender.map((section, index) => (
                   <div
                     key={index}
-                    className="flex-[0_0_100%] min-w-0 px-1 sm:px-0"
+                    className="flex-[0_0_100%] min-w-0 h-full px-1 sm:px-0 flex items-center justify-center"
                     role="group"
                     aria-label={
                       useInfinite
@@ -644,7 +698,15 @@ export default function DashboardPage() {
                     }
                     aria-hidden={useInfinite ? index !== currentIndex : undefined}
                   >
-                    <SectionSlide label={section.label} lines={section.lines} lineHeight={lineHeightList} />
+                    <div
+                      className="w-full h-full flex flex-col min-h-0"
+                      style={{
+                        transform: `scale(${cardScale})`,
+                        transformOrigin: 'center center'
+                      }}
+                    >
+                      <SectionSlide label={section.label} lines={section.lines} lineHeight={lineHeightList} />
+                    </div>
                   </div>
                 ))}
               </div>
