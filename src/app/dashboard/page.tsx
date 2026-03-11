@@ -47,6 +47,16 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
   return blocks;
 }
 
+function blocksToLines(blocks: { title: string | null; lines: string[] }[]): string[] {
+  const out: string[] = [];
+  for (const block of blocks) {
+    if (block.title === 'Sollte funcional') out.push('Sollte funcional:');
+    else if (block.title === 'Accesorios:') out.push('Accesorios:');
+    out.push(...block.lines);
+  }
+  return out;
+}
+
 const LINE_HEIGHT_MIN = 1;
 const LINE_HEIGHT_MAX = 2;
 const LINE_HEIGHT_STEP = 0.1;
@@ -82,52 +92,111 @@ function SectionSlide({ label, lines, lineHeight = LINE_HEIGHT_DEFAULT, classNam
       <div className={`flex-1 min-h-0 border-l p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}>
         {restLines.length > 0 ? (
           <>
-            <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
-              {isMetcon && blocks[0]?.title === 'Crossfit' ? `Crossfit - ${firstLine}` : firstLine}
-            </p>
-            {blocks.map((block, bi) => {
-              const isMetconBlock = isMetcon && block.title;
-              const isSollteBlock = block.title === 'Sollte funcional';
-              const isCrossfitBlock = block.title === 'Crossfit';
-              const titleLine = isMetconBlock && isSollteBlock && block.lines.length > 0 ? block.lines[0] : null;
-              const listLines = isMetconBlock && isSollteBlock && block.lines.length > 0 ? block.lines.slice(1) : block.lines;
-              const sectionTitle = isMetconBlock && !isCrossfitBlock && block.title && (isSollteBlock && titleLine ? `${block.title} - ${titleLine}` : block.title);
-              return (
-                <div key={bi} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
-                  {!isMetcon && block.title && (
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{block.title}</p>
-                  )}
-                  {isMetconBlock && sectionTitle && (
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{sectionTitle}</p>
-                  )}
-                  {listLines.length > 0 && (() => {
-                    const useGroupsOfThree = isMetconBlock && listLines.length >= 3 && listLines.length % 3 === 0;
-                    const chunks = useGroupsOfThree
-                      ? Array.from({ length: listLines.length / 3 }, (_, i) => listLines.slice(i * 3, i * 3 + 3))
-                      : [listLines];
-                    return useGroupsOfThree ? (
-                      <div
-                        className="grid gap-x-4 sm:gap-x-6 md:gap-x-8 gap-y-4 sm:gap-y-6"
-                        style={{ gridTemplateColumns: `repeat(${chunks.length}, minmax(0, 1fr))` }}
-                      >
-                        {chunks.map((chunk, ci) => (
-                          <ul
-                            key={ci}
-                            className="list-none p-0 m-0 flex flex-col gap-y-1 sm:gap-y-2"
-                          >
-                            {chunk.map((item, i) => (
-                              <li
-                                key={i}
-                                className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5"
-                                style={{ lineHeight: lineHeight }}
-                              >
-                                {item}
-                              </li>
-                            ))}
-                          </ul>
-                        ))}
+            {!isMetcon && (
+              <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
+                {firstLine}
+              </p>
+            )}
+            {isMetcon ? (
+              <>
+                {blocks.map((block, bi) => {
+                  const isSollteBlock = block.title === 'Sollte funcional';
+                  const titleLine = isSollteBlock && block.lines.length > 0 ? block.lines[0] : firstLine;
+                  if (block.title === 'Crossfit' || block.title === null) {
+                    return (
+                      <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
+                        <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">Crossfit</p>
+                        <p className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-4xl mt-0.5">{firstLine}</p>
                       </div>
-                    ) : (
+                    );
+                  }
+                  if (block.title === 'Sollte funcional') {
+                    return (
+                      <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
+                        <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">Sollte funcional</p>
+                        <p className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-4xl mt-0.5">{titleLine}</p>
+                      </div>
+                    );
+                  }
+                  if (block.title) {
+                    return (
+                      <p key={bi} className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{block.title}</p>
+                    );
+                  }
+                  return null;
+                })}
+                {(() => {
+                  const allListLines = blocks.flatMap((block) => {
+                    const isSollteBlock = block.title === 'Sollte funcional';
+                    return isSollteBlock && block.lines.length > 0 ? block.lines.slice(1) : block.lines;
+                  });
+                  const useGroupsOfFour = allListLines.length >= 4 && allListLines.length % 4 === 0;
+                  const useGroupsOfThree = !useGroupsOfFour && allListLines.length >= 3 && allListLines.length % 3 === 0;
+                  const groupSize = useGroupsOfFour ? 4 : useGroupsOfThree ? 3 : 0;
+                  const chunks = groupSize > 0
+                    ? Array.from({ length: allListLines.length / groupSize }, (_, i) => allListLines.slice(i * groupSize, i * groupSize + groupSize))
+                    : [allListLines];
+                  const useGrouped = useGroupsOfFour || useGroupsOfThree;
+                  if (allListLines.length > 0) {
+                    console.log('[METCON lista unificada]', {
+                      totalElementos: allListLines.length,
+                      divisiblePor4: allListLines.length % 4 === 0,
+                      divisiblePor3: allListLines.length % 3 === 0,
+                      useGroupsOfFour,
+                      useGroupsOfThree,
+                      groupSize,
+                      numGrupos: chunks.length,
+                      elementosPorGrupo: groupSize > 0 ? groupSize : null,
+                      chunks: chunks.map((c, i) => ({ grupo: i + 1, cantidad: c.length, items: c }))
+                    });
+                  }
+                  return useGrouped ? (
+                    <div
+                      className="grid gap-x-4 sm:gap-x-6 md:gap-x-8 gap-y-4 sm:gap-y-6 mt-2 sm:mt-3 md:mt-4"
+                      style={{ gridTemplateColumns: `repeat(${chunks.length}, minmax(0, 1fr))` }}
+                    >
+                      {chunks.map((chunk, ci) => (
+                        <ul key={ci} className="list-none p-0 m-0 flex flex-col gap-y-1 sm:gap-y-2">
+                          {chunk.map((item, i) => (
+                            <li
+                              key={i}
+                              className={`text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5 ${i === 0 ? 'font-bold' : ''}`}
+                              style={{ lineHeight: lineHeight }}
+                            >
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ))}
+                    </div>
+                  ) : (
+                    <ul
+                      className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 mt-2 sm:mt-3 md:mt-4 ${
+                        allListLines.length <= 4 ? 'grid-cols-1' : allListLines.length < 8 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                      }`}
+                    >
+                      {allListLines.map((item, i) => (
+                        <li
+                          key={i}
+                          className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5"
+                          style={{ lineHeight: lineHeight }}
+                        >
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
+              </>
+            ) : (
+              blocks.map((block, bi) => {
+                const listLines = block.lines;
+                return (
+                  <div key={bi} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
+                    {block.title && (
+                      <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">{block.title}</p>
+                    )}
+                    {listLines.length > 0 && (
                       <ul
                         className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 ${
                           isWarmup ? 'grid-cols-1' : listLines.length <= 4 ? 'grid-cols-1' : listLines.length < 8 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
@@ -143,11 +212,11 @@ function SectionSlide({ label, lines, lineHeight = LINE_HEIGHT_DEFAULT, classNam
                           </li>
                         ))}
                       </ul>
-                    );
-                  })()}
-                </div>
-              );
-            })}
+                    )}
+                  </div>
+                );
+              })
+            )}
           </>
         ) : (
           <p className="text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">{firstLine}</p>
@@ -714,29 +783,64 @@ export default function DashboardPage() {
                 }}
                 onTransitionEnd={handleTransitionEnd}
               >
-                {slidesToRender.map((section, index) => (
-                  <div
-                    key={index}
-                    className="flex-[0_0_100%] min-w-0 h-full px-1 sm:px-0 flex items-center justify-center"
-                    role="group"
-                    aria-label={
-                      useInfinite
-                        ? `Sección ${(index % len) + 1} de ${len}`
-                        : undefined
+                {slidesToRender.map((section, index) => {
+                  const isMetcon = section.label.toUpperCase().startsWith('METCON');
+                  const metconCards = isMetcon ? (() => {
+                    const items = section.lines.map((l) => l.trim().replace(/^[•\-]\s*/, '')).filter(Boolean);
+                    if (items.length === 0) return null;
+                    const firstLine = items[0];
+                    const restLines = items.slice(1);
+                    const blocks = buildBlocks(restLines);
+                    if (blocks.length === 0) return null;
+                    if (blocks.length === 1) {
+                      const b = blocks[0];
+                      const mid = Math.ceil(b.lines.length / 2);
+                      const titleLine = b.title === 'Sollte funcional' ? ['Sollte funcional:'] : b.title === 'Accesorios:' ? ['Accesorios:'] : [];
+                      return [
+                        { label: section.label, lines: [firstLine, ...titleLine, ...b.lines.slice(0, mid)] },
+                        { label: section.label, lines: [firstLine, ...titleLine, ...b.lines.slice(mid)] }
+                      ];
                     }
-                    aria-hidden={useInfinite ? index !== currentIndex : undefined}
-                  >
+                    const mid = Math.ceil(blocks.length / 2);
+                    return [
+                      { label: section.label, lines: [firstLine, ...blocksToLines(blocks.slice(0, mid))] },
+                      { label: section.label, lines: [firstLine, ...blocksToLines(blocks.slice(mid))] }
+                    ];
+                  })() : null;
+                  return (
                     <div
-                      className="w-full h-full flex flex-col min-h-0"
-                      style={{
-                        transform: `scale(${cardScale})`,
-                        transformOrigin: 'center center'
-                      }}
+                      key={index}
+                      className="flex-[0_0_100%] min-w-0 h-full px-1 sm:px-0 flex items-center justify-center"
+                      role="group"
+                      aria-label={
+                        useInfinite
+                          ? `Sección ${(index % len) + 1} de ${len}`
+                          : undefined
+                      }
+                      aria-hidden={useInfinite ? index !== currentIndex : undefined}
                     >
-                      <SectionSlide label={section.label} lines={section.lines} lineHeight={lineHeightList} />
+                      <div
+                        className="w-full h-full flex flex-col min-h-0"
+                        style={{
+                          transform: `scale(${cardScale})`,
+                          transformOrigin: 'center center'
+                        }}
+                      >
+                        {metconCards && metconCards.length === 2 ? (
+                          <div className="flex gap-2 sm:gap-3 md:gap-4 w-full h-full min-h-0 flex-1 items-stretch">
+                            {metconCards.map((card, ci) => (
+                              <div key={ci} className="flex-1 min-w-0 min-h-0 flex flex-col">
+                                <SectionSlide label={card.label} lines={card.lines} lineHeight={lineHeightList} className="flex-1 min-h-0 h-full" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <SectionSlide label={section.label} lines={section.lines} lineHeight={lineHeightList} />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
