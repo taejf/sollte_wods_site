@@ -98,7 +98,7 @@ const LINE_HEIGHT_DEFAULT = 1.2;
 const STORAGE_KEY_LINE_HEIGHT = "dashboard-line-height";
 
 const CARD_SCALE_MIN = 0.5;
-const CARD_SCALE_MAX = 1;
+const CARD_SCALE_MAX = 2;
 const CARD_SCALE_STEP = 0.05;
 const CARD_SCALE_DEFAULT = 1;
 const STORAGE_KEY_CARD_SCALE = "dashboard-card-scale";
