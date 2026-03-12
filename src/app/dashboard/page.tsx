@@ -72,15 +72,23 @@ const CARD_SCALE_STEP = 0.05
 const CARD_SCALE_DEFAULT = 1
 const STORAGE_KEY_CARD_SCALE = 'dashboard-card-scale'
 
+const FONT_SIZE_MIN = 0.75
+const FONT_SIZE_MAX = 1.5
+const FONT_SIZE_STEP = 0.125
+const FONT_SIZE_DEFAULT = 1
+const STORAGE_KEY_FONT_SIZE = 'dashboard-font-size'
+
 function SectionSlide({
   label,
   lines,
   lineHeight = LINE_HEIGHT_DEFAULT,
+  fontSize = FONT_SIZE_DEFAULT,
   className = '',
 }: {
   label: string
   lines: string[]
   lineHeight?: number
+  fontSize?: number
   className?: string
 }) {
   const items = lines
@@ -96,7 +104,7 @@ function SectionSlide({
 
   return (
     <div
-      className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-gray-800 min-h-0 ${isWarmup ? 'max-w-4xl w-full mx-auto' : ''} ${className}`}
+      className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 ${isWarmup ? 'max-w-4xl w-full mx-auto' : ''} ${className}`}
     >
       <div
         className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
@@ -106,11 +114,12 @@ function SectionSlide({
       </div>
       <div
         className={`flex-1 min-h-0 border-l p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}
+        style={{ fontSize: `${fontSize}rem` }}
       >
         {restLines.length > 0 ? (
           <>
             {!isMetcon && (
-              <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
+              <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                 {firstLine}
               </p>
             )}
@@ -123,10 +132,10 @@ function SectionSlide({
                   if (block.title === 'Crossfit' || block.title === null) {
                     return (
                       <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
-                        <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
+                        <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                           Crossfit
                         </p>
-                        <p className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-4xl mt-0.5">
+                        <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] mt-0.5">
                           {firstLine}
                         </p>
                       </div>
@@ -135,10 +144,10 @@ function SectionSlide({
                   if (block.title === 'Sollte funcional') {
                     return (
                       <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
-                        <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
+                        <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                           Sollte funcional
                         </p>
-                        <p className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-4xl mt-0.5">
+                        <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] mt-0.5">
                           {titleLine}
                         </p>
                       </div>
@@ -148,7 +157,7 @@ function SectionSlide({
                     return (
                       <p
                         key={bi}
-                        className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2"
+                        className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2"
                       >
                         {block.title}
                       </p>
@@ -186,7 +195,7 @@ function SectionSlide({
                           {chunk.map((item, i) => (
                             <li
                               key={i}
-                              className={`text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5 ${i === 0 ? 'font-bold' : ''}`}
+                              className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] py-0.5 ${i === 0 ? 'font-bold' : ''}`}
                               style={{ lineHeight: lineHeight }}
                             >
                               {item}
@@ -208,7 +217,7 @@ function SectionSlide({
                       {allListLines.map((item, i) => (
                         <li
                           key={i}
-                          className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5"
+                          className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] py-0.5"
                           style={{ lineHeight: lineHeight }}
                         >
                           {item}
@@ -224,7 +233,7 @@ function SectionSlide({
                 return (
                   <div key={bi} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
                     {block.title && (
-                      <p className="font-semibold text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl mb-1 sm:mb-2">
+                      <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2">
                         {block.title}
                       </p>
                     )}
@@ -243,7 +252,7 @@ function SectionSlide({
                         {listLines.map((item, i) => (
                           <li
                             key={i}
-                            className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-[2.5rem] py-0.5"
+                            className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] py-0.5"
                             style={{ lineHeight: lineHeight }}
                           >
                             {item}
@@ -257,7 +266,7 @@ function SectionSlide({
             )}
           </>
         ) : (
-          <p className="text-[#333] dark:text-gray-200 text-lg sm:text-xl md:text-3xl lg:text-5xl">
+          <p className="text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
             {firstLine}
           </p>
         )}
@@ -330,6 +339,7 @@ export default function DashboardPage() {
   const [isDark, setIsDark] = useState(true)
   const [lineHeightList, setLineHeightList] = useState(LINE_HEIGHT_DEFAULT)
   const [cardScale, setCardScale] = useState(CARD_SCALE_DEFAULT)
+  const [fontSizeScale, setFontSizeScale] = useState(FONT_SIZE_DEFAULT)
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -344,6 +354,11 @@ export default function DashboardPage() {
       if (storedScale !== null) {
         const s = parseFloat(storedScale)
         if (!Number.isNaN(s) && s >= CARD_SCALE_MIN && s <= CARD_SCALE_MAX) setCardScale(s)
+      }
+      const storedFont = localStorage.getItem(STORAGE_KEY_FONT_SIZE)
+      if (storedFont !== null) {
+        const f = parseFloat(storedFont)
+        if (!Number.isNaN(f) && f >= FONT_SIZE_MIN && f <= FONT_SIZE_MAX) setFontSizeScale(f)
       }
     } catch {
       // ignore
@@ -365,6 +380,14 @@ export default function DashboardPage() {
       // ignore
     }
   }, [cardScale])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_FONT_SIZE, String(fontSizeScale))
+    } catch {
+      // ignore
+    }
+  }, [fontSizeScale])
 
   useEffect(() => {
     applyTheme(isDark)
@@ -603,7 +626,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
-      <header className="bg-white dark:bg-gray-900 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
+      <header className="bg-white dark:bg-[#3C3C3C] py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
         <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center w-full max-w-full sm:max-w-[900px] mx-auto gap-2 sm:gap-4 min-w-0">
           <p
             className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-left order-2 sm:order-1 min-w-0 overflow-hidden"
@@ -640,7 +663,7 @@ export default function DashboardPage() {
         }`}
       >
         <fieldset
-          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
           aria-label="Tamaño de tarjetas"
         >
           <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
@@ -677,7 +700,7 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
           aria-label="Ajuste de interlineado"
         >
           <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
@@ -708,6 +731,49 @@ export default function DashboardPage() {
               }
               className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Aumentar interlineado"
+            >
+              +
+            </button>
+          </div>
+        </fieldset>
+        <fieldset
+          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          aria-label="Tamaño de fuente"
+        >
+          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+            Tamaño fuente
+          </legend>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setFontSizeScale((v) =>
+                  Math.max(
+                    FONT_SIZE_MIN,
+                    Math.round((v - FONT_SIZE_STEP) * 1000) / 1000
+                  )
+                )
+              }
+              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Reducir tamaño de fuente"
+            >
+              −
+            </button>
+            <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+              {fontSizeScale.toFixed(2)}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setFontSizeScale((v) =>
+                  Math.min(
+                    FONT_SIZE_MAX,
+                    Math.round((v + FONT_SIZE_STEP) * 1000) / 1000
+                  )
+                )
+              }
+              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Aumentar tamaño de fuente"
             >
               +
             </button>
@@ -1016,6 +1082,7 @@ export default function DashboardPage() {
                                     label={card.label}
                                     lines={card.lines}
                                     lineHeight={lineHeightList}
+                                    fontSize={fontSizeScale}
                                     className="flex-1 min-h-0 h-full"
                                   />
                                 </div>
@@ -1026,6 +1093,7 @@ export default function DashboardPage() {
                               label={slideSection.label}
                               lines={slideSection.lines}
                               lineHeight={lineHeightList}
+                              fontSize={fontSizeScale}
                             />
                           )}
                         </div>
