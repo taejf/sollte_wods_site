@@ -99,7 +99,8 @@ function SectionSlide({
   const restLines = items.slice(1)
   const isMetcon = label.toUpperCase().startsWith('METCON')
   const isWarmup = label.toUpperCase().startsWith('WARM')
-  const labelBg = isMetcon ? 'bg-black' : 'bg-[#6E6E6E]'
+  const isFuerza = label === 'FUERZA'
+  const labelBg = 'bg-black'
   const blocks = buildBlocks(restLines)
 
   return (
@@ -207,11 +208,13 @@ function SectionSlide({
                   ) : (
                     <ul
                       className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 mt-2 sm:mt-3 md:mt-4 ${
-                        allListLines.length <= 4
+                        isFuerza
                           ? 'grid-cols-1'
-                          : allListLines.length < 8
-                            ? 'grid-cols-1 md:grid-cols-2'
-                            : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+                          : allListLines.length <= 4
+                            ? 'grid-cols-1'
+                            : allListLines.length < 8
+                              ? 'grid-cols-1 md:grid-cols-2'
+                              : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
                       }`}
                     >
                       {allListLines.map((item, i) => (
@@ -240,7 +243,7 @@ function SectionSlide({
                     {listLines.length > 0 && (
                       <ul
                         className={`list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 ${
-                          isWarmup
+                          isWarmup || isFuerza
                             ? 'grid-cols-1'
                             : listLines.length <= 4
                               ? 'grid-cols-1'
