@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+build/
+dist/
+
+# Deployment
+.vercel/
+.turbo/
+
+# Config files (usually auto-generated or external)
+next.config.js
+next.config.mjs
+postcss.config.js
+tailwind.config.js
+tailwind.config.ts
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+
+# Public assets
+public/
+
+# Scripts
+scripts/
+verificar-config.js
+
+# Type definitions (auto-generated)
+*.d.ts
+!src/**/*.d.ts
+
+# CSS with Tailwind directives
+src/app/globals.css

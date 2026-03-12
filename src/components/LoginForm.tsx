@@ -1,39 +1,39 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { loginWithPin } from '@/lib/auth';
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { loginWithPin } from '@/lib/auth'
 
 export default function LoginForm() {
-  const router = useRouter();
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const router = useRouter()
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+    e.preventDefault()
+    setError('')
     if (!pin.trim()) {
-      setError('Introduce tu PIN');
-      return;
+      setError('Introduce tu PIN')
+      return
     }
-    setLoading(true);
+    setLoading(true)
     try {
-      await loginWithPin(pin);
-      router.push('/dashboard');
+      await loginWithPin(pin)
+      router.push('/dashboard')
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '';
+      const message = err instanceof Error ? err.message : ''
       if (message === 'NO_ADMIN_ACCESS') {
-        setError('Acceso denegado. Tu cuenta no tiene permisos de administrador.');
+        setError('Acceso denegado. Tu cuenta no tiene permisos de administrador.')
       } else if (message.includes('PIN incorrecto') || message.includes('incorrecto')) {
-        setError('PIN incorrecto');
+        setError('PIN incorrecto')
       } else {
-        setError(message || 'Error al iniciar sesión. Verifica tu PIN.');
+        setError(message || 'Error al iniciar sesión. Verifica tu PIN.')
       }
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5] p-8">
@@ -94,5 +94,5 @@ export default function LoginForm() {
         </form>
       </div>
     </div>
-  );
+  )
 }

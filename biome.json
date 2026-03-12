@@ -1,0 +1,150 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.6/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true,
+    "defaultBranch": "main"
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "src/**/*",
+      "*.ts",
+      "*.tsx",
+      "*.js",
+      "*.jsx",
+      "!!**/node_modules",
+      "!!**/.next",
+      "!!**/out",
+      "!!**/build",
+      "!!**/dist",
+      "!!**/.vercel",
+      "!!**/.turbo",
+      "!!**/*.config.js",
+      "!!**/*.config.mjs",
+      "!!**/*.config.ts",
+      "!!**/public"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100,
+    "attributePosition": "auto"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "noSvgWithoutTitle": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off",
+        "noForEach": "off",
+        "noStaticOnlyClass": "off",
+        "noUselessEscapeInRegex": "warn",
+        "useFlatMap": "warn",
+        "useOptionalChain": "warn"
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "useExhaustiveDependencies": "warn",
+        "useHookAtTopLevel": "error"
+      },
+      "performance": {
+        "noAccumulatingSpread": "warn",
+        "noDelete": "warn"
+      },
+      "style": {
+        "noNegationElse": "off",
+        "noNonNullAssertion": "warn",
+        "noParameterAssign": "off",
+        "useBlockStatements": "off",
+        "useCollapsedElseIf": "warn",
+        "useConsistentArrayType": {
+          "level": "error",
+          "options": {
+            "syntax": "shorthand"
+          }
+        },
+        "useFilenamingConvention": {
+          "level": "warn",
+          "options": {
+            "strictCase": false,
+            "requireAscii": true,
+            "filenameCases": ["kebab-case", "PascalCase"]
+          }
+        },
+        "useForOf": "warn",
+        "useImportType": "warn",
+        "useNodejsImportProtocol": "warn",
+        "useSingleVarDeclarator": "off",
+        "useTemplate": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "off",
+        "noConsole": "warn",
+        "noDoubleEquals": "error",
+        "noExplicitAny": "warn",
+        "noUnknownAtRules": "off",
+        "useIterableCallbackReturn": "warn"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "jsxQuoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "trailingCommas": "es5",
+      "semicolons": "asNeeded",
+      "arrowParentheses": "always",
+      "bracketSpacing": true,
+      "bracketSameLine": false,
+      "quoteStyle": "single",
+      "attributePosition": "auto"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["*.ts", "*.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "error"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx", "verificar-config.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off",
+            "useIterableCallbackReturn": "off"
+          },
+          "style": {
+            "useConst": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/app/api/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "error"
+          }
+        }
+      }
+    }
+  ]
+}
