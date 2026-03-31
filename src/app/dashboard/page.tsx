@@ -95,7 +95,7 @@ function isNoteLine(item: string): boolean {
 }
 
 function isRoundLine(item: string): boolean {
-  return /\b(ROUND|ROUNDS)\b/i.test(item)
+  return /^\s*(?:\d+\s+)?rounds?\b/i.test(item)
 }
 
 function isFortalecimientoLine(item: string): boolean {
@@ -150,9 +150,13 @@ const EXERCISE_LINE_TEXT =
   'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
 const NOTE_LINE_TEXT =
   'text-[#333] dark:text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
+const SUBTITLE_LINE_TEXT =
+  'text-[#666] dark:text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
 
 function getLineTextClasses(item: string): string {
-  return isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT
+  if (isRoundLine(item)) return SUBTITLE_LINE_TEXT
+  if (isNoteLine(item)) return NOTE_LINE_TEXT
+  return EXERCISE_LINE_TEXT
 }
 
 const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
@@ -534,7 +538,6 @@ function SectionSlide({
                               items={listLines}
                               layout="single"
                               lineHeight={lineHeight}
-                              extraLiClass={(item) => (isRoundLine(item) ? 'font-bold' : '')}
                             />
                           </div>
                           <div className="hidden sm:grid sm:grid-cols-2 sm:gap-x-6 mt-2 sm:mt-3 md:mt-4">
@@ -546,7 +549,6 @@ function SectionSlide({
                                 <ExerciseColumnItems
                                   items={columnItems}
                                   lineHeight={lineHeight}
-                                  extraLiClass={(item) => (isRoundLine(item) ? 'font-bold' : '')}
                                 />
                               </div>
                             ))}
@@ -557,9 +559,6 @@ function SectionSlide({
                           items={listLines}
                           layout={listGridLayout}
                           lineHeight={lineHeight}
-                          extraLiClass={(item) =>
-                            isWarmup && isRoundLine(item) ? 'font-bold' : ''
-                          }
                         />
                       )
                     )}
