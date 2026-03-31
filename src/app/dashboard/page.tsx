@@ -140,7 +140,7 @@ function SectionSlide({
 
   return (
     <div
-      className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 ${isWarmup ? "max-w-4xl w-full mx-auto" : ""} ${isEnduranceSection ? "max-w-5xl w-full mx-auto" : ""} ${className}`}
+      className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 max-w-[96%] mx-auto ${isWarmup ? "sm:max-w-4xl" : ""} ${isEnduranceSection ? "sm:max-w-5xl" : ""} ${className}`}
     >
       <div
         className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
@@ -374,16 +374,118 @@ function SectionSlide({
   );
 }
 
+function DualSectionSlide({
+  label,
+  crossfitLines,
+  functionalLines,
+  lineHeight = LINE_HEIGHT_DEFAULT,
+  fontSize = FONT_SIZE_DEFAULT,
+  className = "",
+}: {
+  label: string;
+  crossfitLines: string[];
+  functionalLines: string[];
+  lineHeight?: number;
+  fontSize?: number;
+  className?: string;
+}) {
+  const crossfitItems = crossfitLines
+    .filter((line) => line.trim())
+    .map((line) => line.trim().replace(/^[•-]\s*/, ""));
+  const functionalItems = functionalLines
+    .filter((line) => line.trim())
+    .map((line) => line.trim().replace(/^[•-]\s*/, ""));
+
+  if (crossfitItems.length === 0 && functionalItems.length === 0) return null;
+
+  const labelBg = "bg-black";
+
+  return (
+    <div className={`flex gap-2 sm:gap-3 md:gap-4 w-full max-w-[96%] mx-auto h-full min-h-0 flex-1 items-stretch ${className}`}>
+      {crossfitItems.length > 0 && (
+        <div className="flex-1 min-w-0 rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 flex">
+          <div
+            className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
+            style={labelStripStyle}
+          >
+            {label}
+          </div>
+          <div
+            className="flex-1 min-h-0 border-l border-black dark:border-gray-500 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col"
+            style={{ fontSize: `${fontSize}rem` }}
+          >
+            <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+              Crossfit
+            </p>
+            <ul className="list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 grid-cols-1">
+              {crossfitItems.map((item, i) => (
+                <li
+                  key={i}
+                  className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] py-0.5"
+                  style={{ lineHeight: lineHeight }}
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+      {functionalItems.length > 0 && (
+        <div className="flex-1 min-w-0 rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 flex">
+          <div
+            className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
+            style={labelStripStyle}
+          >
+            {label}
+          </div>
+          <div
+            className="flex-1 min-h-0 border-l border-black dark:border-gray-500 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col"
+            style={{ fontSize: `${fontSize}rem` }}
+          >
+            <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+              Funcional
+            </p>
+            <ul className="list-none p-0 m-0 grid gap-x-3 sm:gap-x-4 md:gap-x-6 gap-y-0.5 grid-cols-1">
+              {functionalItems.map((item, i) => (
+                <li
+                  key={i}
+                  className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] py-0.5"
+                  style={{ lineHeight: lineHeight }}
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type WodSection =
   | { type: "header"; title: string; description: string }
-  | { type: "section"; label: string; lines: string[] };
+  | { type: "section"; label: string; lines: string[] }
+  | { type: "dual-section"; label: string; crossfitLines: string[]; functionalLines: string[] };
 
 function getSections(wod: WodDoc | undefined): WodSection[] {
   if (!wod) return [];
   const title = wod.title || "WOD";
   const description = wod.description || "";
   const warmup = wod.warmup || wod.warmUp || "";
-  const strength = wod.strength || "";
+  
+  let strength = "";
+  let functionalStrength = "";
+  
+  if (typeof wod.strength === "string") {
+    strength = wod.strength;
+    functionalStrength = typeof wod.functionalDescription === "string" ? wod.functionalDescription : "";
+  } else if (typeof wod.strength === "object" && wod.strength !== null) {
+    strength = typeof wod.strength.description === "string" ? wod.strength.description : "";
+    functionalStrength = typeof wod.strength.functionalDescription === "string" ? wod.strength.functionalDescription : "";
+  }
+  
   const metcoes = wod.metcoes || wod.metcoms || [];
   const additional = wod.additional || "";
   const sections: WodSection[] = [];
@@ -397,24 +499,65 @@ function getSections(wod: WodDoc | undefined): WodSection[] {
       lines: warmup.split("\n").filter((l) => l.trim()),
     });
   }
-  if (strength.trim()) {
+  
+  const hasBothStrength = strength.trim() && functionalStrength.trim();
+  if (hasBothStrength) {
+    sections.push({
+      type: "dual-section",
+      label: "FUERZA",
+      crossfitLines: strength.split("\n").filter((l) => l.trim()),
+      functionalLines: functionalStrength.split("\n").filter((l) => l.trim()),
+    });
+  } else if (strength.trim()) {
     sections.push({
       type: "section",
       label: "FUERZA",
       lines: strength.split("\n").filter((l) => l.trim()),
     });
+  } else if (functionalStrength.trim()) {
+    sections.push({
+      type: "section",
+      label: "FUERZA",
+      lines: functionalStrength.split("\n").filter((l) => l.trim()),
+    });
   }
+  
   metcoes.forEach((metcon, index) => {
-    const lines =
-      metcon?.description?.split("\n").filter((l) => l.trim()) ?? [];
-    if (lines.length > 0) {
+    const descRaw = metcon?.description || "";
+    const desc = typeof descRaw === "string" ? descRaw : "";
+    const funcDescRaw = metcon?.functionalDescription || "";
+    const funcDesc = typeof funcDescRaw === "string" ? funcDescRaw : "";
+    
+    const hasBothMetcon = desc.trim() && funcDesc.trim();
+    
+    if (hasBothMetcon) {
       sections.push({
-        type: "section",
+        type: "dual-section",
         label: `METCON ${index + 1}`,
-        lines,
+        crossfitLines: desc.split("\n").filter((l) => l.trim()),
+        functionalLines: funcDesc.split("\n").filter((l) => l.trim()),
       });
+    } else if (desc.trim()) {
+      const lines = desc.split("\n").filter((l) => l.trim());
+      if (lines.length > 0) {
+        sections.push({
+          type: "section",
+          label: `METCON ${index + 1}`,
+          lines,
+        });
+      }
+    } else if (funcDesc.trim()) {
+      const lines = funcDesc.split("\n").filter((l) => l.trim());
+      if (lines.length > 0) {
+        sections.push({
+          type: "section",
+          label: `METCON ${index + 1}`,
+          lines,
+        });
+      }
     }
   });
+  
   if (additional.trim()) {
     sections.push({
       type: "section",
@@ -551,7 +694,7 @@ export default function DashboardPage() {
   const currentWod = wods[0];
   const sections = getSections(currentWod);
   const carouselSections = sections.filter(
-    (s): s is Extract<WodSection, { type: "section" }> => s.type === "section",
+    (s): s is Extract<WodSection, { type: "section" | "dual-section" }> => s.type === "section" || s.type === "dual-section",
   );
   const sectionsLengthRef = useRef(carouselSections.length);
   const currentIndexRef = useRef(0);
@@ -1182,7 +1325,7 @@ export default function DashboardPage() {
                     </>
                   )}
                   <div
-                    className="flex"
+                    className="flex w-full"
                     style={{
                       transform: `translateX(-${currentIndex * 100}%)`,
                       transition:
@@ -1193,11 +1336,45 @@ export default function DashboardPage() {
                     onTransitionEnd={handleTransitionEnd}
                   >
                     {slidesToRender.map((slideSection, index) => {
+                      if (slideSection.type === "dual-section") {
+                        return (
+                          <section
+                            key={index}
+                            className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
+                            aria-label={
+                              useInfinite
+                                ? `Sección ${(index % len) + 1} de ${len}`
+                                : undefined
+                            }
+                            aria-hidden={
+                              useInfinite ? index !== currentIndex : undefined
+                            }
+                          >
+                            <div
+                              className="w-full max-w-[98%] h-full flex flex-col min-h-0"
+                              style={{
+                                transform: `scale(${cardScale})`,
+                                transformOrigin: "center center",
+                              }}
+                            >
+                              <DualSectionSlide
+                                label={slideSection.label}
+                                crossfitLines={slideSection.crossfitLines}
+                                functionalLines={slideSection.functionalLines}
+                                lineHeight={lineHeightList}
+                                fontSize={fontSizeScale}
+                                className="flex-1 min-h-0 h-full"
+                              />
+                            </div>
+                          </section>
+                        );
+                      }
+                      
                       const isMetcon = slideSection.label
                         .toUpperCase()
                         .startsWith("METCON");
                       const isFuerza = slideSection.label === "FUERZA";
-                      const metconCards = isMetcon
+                      const metconCards = isMetcon && slideSection.type === "section"
                         ? (() => {
                             const items = slideSection.lines
                               .map((l) => l.trim().replace(/^[•-]\s*/, ""))
@@ -1277,7 +1454,7 @@ export default function DashboardPage() {
                             ];
                           })()
                         : null;
-                      const fuerzaCards = isFuerza
+                      const fuerzaCards = isFuerza && slideSection.type === "section"
                         ? (() => {
                             const items = slideSection.lines
                               .map((l) => l.trim().replace(/^[•-]\s*/, ""))
@@ -1327,14 +1504,16 @@ export default function DashboardPage() {
                           : null;
                       const isFuerzaFortalecimientoSingle =
                         isFuerza &&
+                        slideSection.type === "section" &&
                         slideSection.lines[0]?.trim().includes("Fortalecimiento:");
                       const isMetconRoundSingle =
                         isMetcon &&
+                        slideSection.type === "section" &&
                         slideSection.lines[0]?.trim().toLowerCase().includes("round");
                       return (
                         <section
                           key={index}
-                          className="flex-[0_0_100%] min-w-0 h-full px-1 sm:px-0 flex items-center justify-center"
+                          className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                           aria-label={
                             useInfinite
                               ? `Sección ${(index % len) + 1} de ${len}`
@@ -1345,14 +1524,14 @@ export default function DashboardPage() {
                           }
                         >
                           <div
-                            className="w-full h-full flex flex-col min-h-0"
+                            className="w-full max-w-[98%] h-full flex flex-col min-h-0"
                             style={{
                               transform: `scale(${cardScale})`,
                               transformOrigin: "center center",
                             }}
                           >
                             {singleEnduranceCard ? (
-                              <div className="w-full max-w-7xl mx-auto flex flex-col min-h-0 flex-1">
+                              <div className="w-full max-w-[96%] sm:max-w-5xl mx-auto flex flex-col min-h-0 flex-1">
                                 <SectionSlide
                                   label={singleEnduranceCard.label}
                                   lines={singleEnduranceCard.lines}
@@ -1362,7 +1541,7 @@ export default function DashboardPage() {
                                 />
                               </div>
                             ) : twoCards ? (
-                              <div className="flex gap-2 sm:gap-3 md:gap-4 w-full h-full min-h-0 flex-1 items-stretch">
+                              <div className="flex gap-2 sm:gap-3 md:gap-4 w-full max-w-[96%] mx-auto h-full min-h-0 flex-1 items-stretch">
                                 {twoCards.map((card, ci) => (
                                   <div
                                     key={ci}
@@ -1380,28 +1559,31 @@ export default function DashboardPage() {
                               </div>
                             ) : isFuerzaFortalecimientoSingle ||
                               isMetconRoundSingle ? (
-                              <div className="w-full max-w-4xl mx-auto flex flex-col min-h-0 flex-1">
+                              <div className="w-full max-w-[96%] sm:max-w-4xl mx-auto flex flex-col min-h-0 flex-1">
                                 <SectionSlide
                                   label={slideSection.label}
                                   lines={
+                                    slideSection.type === "section" &&
                                     isMetconRoundSingle &&
                                     slideSection.lines[0]?.trim() === "Crossfit"
                                       ? slideSection.lines.slice(1)
-                                      : slideSection.lines
+                                      : slideSection.type === "section"
+                                        ? slideSection.lines
+                                        : []
                                   }
                                   lineHeight={lineHeightList}
                                   fontSize={fontSizeScale}
                                   className="flex-1 min-h-0 h-full"
                                 />
                               </div>
-                            ) : (
+                            ) : slideSection.type === "section" ? (
                               <SectionSlide
                                 label={slideSection.label}
                                 lines={slideSection.lines}
                                 lineHeight={lineHeightList}
                                 fontSize={fontSizeScale}
                               />
-                            )}
+                            ) : null}
                           </div>
                         </section>
                       );

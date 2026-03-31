@@ -6,9 +6,10 @@ export interface WodDoc {
   description?: string
   warmup?: string
   warmUp?: string
-  strength?: string
-  metcoes?: { description?: string }[]
-  metcoms?: { description?: string }[]
+  strength?: string | { description?: string; functionalDescription?: string }
+  functionalDescription?: string
+  metcoes?: { description?: string; functionalDescription?: string }[]
+  metcoms?: { description?: string; functionalDescription?: string }[]
   additional?: string
   wodDate?: unknown
 }
@@ -18,7 +19,18 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
   const description = wod.description || ''
   const metcoes = wod.metcoes || wod.metcoms || []
   const warmup = wod.warmup || wod.warmUp || ''
-  const strength = wod.strength || ''
+  
+  let strength = ''
+  let functionalStrength = ''
+  
+  if (typeof wod.strength === 'string') {
+    strength = wod.strength
+    functionalStrength = typeof wod.functionalDescription === 'string' ? wod.functionalDescription : ''
+  } else if (typeof wod.strength === 'object' && wod.strength !== null) {
+    strength = typeof wod.strength.description === 'string' ? wod.strength.description : ''
+    functionalStrength = typeof wod.strength.functionalDescription === 'string' ? wod.strength.functionalDescription : ''
+  }
+  
   const additional = wod.additional || ''
 
   return (
@@ -32,6 +44,9 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
       {strength && (
         <SectionCard label="FUERZA" lines={strength.split('\n').filter((l) => l.trim())} />
       )}
+      {functionalStrength && (
+        <SectionCard label="FUERZA" lines={functionalStrength.split('\n').filter((l) => l.trim())} />
+      )}
       {metcoes && metcoes.length > 0 && (
         <div className="w-screen relative left-1/2 -translate-x-1/2 bg-black py-3 px-4 my-6">
           <p className="text-white font-bold text-sm uppercase tracking-wider text-center m-0">
@@ -40,9 +55,21 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
         </div>
       )}
       {metcoes?.map((metcon, index) => {
-        const lines = metcon?.description?.split('\n').filter((l) => l.trim()) ?? []
-        if (lines.length === 0) return null
-        return <SectionCard key={index} label={`METCON ${index + 1}`} lines={lines} />
+        const descRaw = metcon?.description || ''
+        const desc = typeof descRaw === 'string' ? descRaw : ''
+        const funcDescRaw = metcon?.functionalDescription || ''
+        const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
+        
+        return (
+          <>
+            {desc.trim() && (
+              <SectionCard key={`${index}-desc`} label={`METCON ${index + 1}`} lines={desc.split('\n').filter((l) => l.trim())} />
+            )}
+            {funcDesc.trim() && (
+              <SectionCard key={`${index}-func`} label={`METCON ${index + 1}`} lines={funcDesc.split('\n').filter((l) => l.trim())} />
+            )}
+          </>
+        )
       })}
       {additional && (
         <>
