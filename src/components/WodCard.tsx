@@ -1,18 +1,5 @@
+import type { WodDoc } from '@/lib/wod'
 import SectionCard from './SectionCard'
-
-export interface WodDoc {
-  id?: string
-  title?: string
-  description?: string
-  warmup?: string
-  warmUp?: string
-  strength?: string | { description?: string; functionalDescription?: string }
-  functionalDescription?: string
-  metcoes?: { description?: string; functionalDescription?: string }[]
-  metcoms?: { description?: string; functionalDescription?: string }[]
-  additional?: string
-  wodDate?: unknown
-}
 
 export default function WodCard({ wod }: { wod: WodDoc }) {
   const title = wod.title || 'WOD'

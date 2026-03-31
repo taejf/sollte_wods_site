@@ -1,14 +1,11 @@
 'use client'
 
-import type { QuerySnapshot } from 'firebase/firestore'
-import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { applyTheme, getSavedTheme } from '@/components/ThemeInit'
-import type { WodDoc } from '@/components/WodCard'
-import { checkIsAdmin, getAdminHeadquarterByUid, logoutUser, onAuthChange } from '@/lib/auth'
-import { db } from '@/lib/firebase'
+import { checkIsAdmin, logoutUser, onAuthChange } from '@/lib/auth'
+import type { WodDoc, WodsApiResponse } from '@/lib/wod'
 
 const labelStripStyle: React.CSSProperties = {
   writingMode: 'vertical-rl',
@@ -727,9 +724,9 @@ function filterWodsByDate(wods: WodDoc[], date: Date): WodDoc[] {
   const target = new Date(date)
   target.setHours(0, 0, 0, 0)
   return wods.filter((wod) => {
-    const d = wod.wodDate as { toDate?: () => Date } | undefined
+    const d = wod.wodDate
     if (!d) return false
-    const wodDate = d.toDate ? d.toDate() : new Date(d as unknown as string)
+    const wodDate = new Date(d)
     wodDate.setHours(0, 0, 0, 0)
     return wodDate.getTime() === target.getTime()
   })
@@ -880,16 +877,20 @@ export default function DashboardPage() {
       }
 
       try {
-        const wodsRef = collection(db, 'crossfitconnect-app', 'nuevaVersion', 'wods')
-        let snapshot: QuerySnapshot
-        try {
-          const q = query(wodsRef, orderBy('wodDate', 'desc'))
-          snapshot = await getDocs(q)
-        } catch {
-          snapshot = await getDocs(wodsRef)
+        const idToken = await user.getIdToken()
+        const res = await fetch('/api/wods', {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${idToken}` },
+        })
+        const payload = (await res.json().catch(() => ({}))) as Partial<WodsApiResponse> & {
+          error?: string
         }
+        if (!res.ok) {
+          throw new Error(payload.error || 'Error al cargar WODs')
+        }
+        const loadedWods = Array.isArray(payload.wods) ? payload.wods : []
 
-        if (snapshot.empty) {
+        if (loadedWods.length === 0) {
           setError(
             'No se encontraron WODs en Firestore. Asegúrate de tener documentos en la ruta: /crossfitconnect-app/nuevaVersion/wods/'
           )
@@ -897,23 +898,18 @@ export default function DashboardPage() {
           return
         }
 
-        const allWods = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as WodDoc[]
-
-        const sorted = [...allWods].sort((a, b) => {
+        const sorted = [...loadedWods].sort((a, b) => {
           const getTime = (w: WodDoc) => {
-            const d = w.wodDate as { toDate?: () => Date } | undefined
+            const d = w.wodDate
             if (!d) return 0
-            const date = d.toDate ? d.toDate() : new Date(d as unknown as string)
+            const date = new Date(d)
             return date.getTime()
           }
           return getTime(b) - getTime(a)
         })
 
         setAllWods(sorted)
-        const headquarter = await getAdminHeadquarterByUid(user.uid)
+        const headquarter = typeof payload.headquarter === 'string' ? payload.headquarter : null
         setAdminHeadquarter(headquarter)
       } catch (_err) {
         setError(
