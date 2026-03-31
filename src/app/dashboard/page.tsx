@@ -110,6 +110,10 @@ function isForTimeLine(item: string): boolean {
   return /\bfor\s*time\b/i.test(item)
 }
 
+function isRpeLine(item: string): boolean {
+  return /^\s*rpe\b/i.test(item)
+}
+
 /** Borde inferior entre líneas dentro de una sola columna. */
 function exerciseGridItemBottomBorderClasses(
   index: number,
@@ -179,6 +183,7 @@ type LineTextContext = {
 
 function isSubtitleLine(item: string, ctx?: LineTextContext): boolean {
   if (ctx?.isFirstItem && isForTimeLine(item)) return true
+  if (ctx?.isFirstItem && isRpeLine(item)) return true
   return isRoundLine(item)
 }
 
@@ -186,6 +191,47 @@ function getLineTextClasses(item: string, ctx?: LineTextContext): string {
   if (isSubtitleLine(item, ctx)) return SUBTITLE_LINE_TEXT
   if (isNoteLine(item)) return NOTE_LINE_TEXT
   return EXERCISE_LINE_TEXT
+}
+
+const HIGHLIGHT_TOKEN_TEXT = 'text-[#00FFFF]'
+const EMPHASIS_TOKEN_TEXT = 'text-[#F8F400]'
+const LINE_HIGHLIGHT_TOKEN_REGEX =
+  /\bRPE\s*\d+(?:\s*-\s*\d+)?\b|\d+(?:[.,]\d+)?%|(?<![A-Za-z])\d+(?:[xX:/+-]\d+)*(?:[%xX:/+-]|:)?(?:["”])?(?![A-Za-z])/gi
+
+function renderStyledLineText(
+  line: string,
+  opts?: {
+    highlightTokens?: boolean
+  }
+): React.ReactNode {
+  if (opts?.highlightTokens === false) return line
+  const parts: React.ReactNode[] = []
+  let cursor = 0
+
+  for (const match of line.matchAll(LINE_HIGHLIGHT_TOKEN_REGEX)) {
+    const token = match[0]
+    const start = match.index ?? -1
+    if (start < 0) continue
+
+    if (start > cursor) {
+      parts.push(line.slice(cursor, start))
+    }
+
+    const isEmphasisToken = /^RPE\s*\d+(?:\s*-\s*\d+)?$/i.test(token) || /%$/.test(token)
+    parts.push(
+      <span key={`token-${start}`} className={isEmphasisToken ? EMPHASIS_TOKEN_TEXT : HIGHLIGHT_TOKEN_TEXT}>
+        {token}
+      </span>
+    )
+
+    cursor = start + token.length
+  }
+
+  if (cursor < line.length) {
+    parts.push(line.slice(cursor))
+  }
+
+  return <>{parts.length > 0 ? parts : line}</>
 }
 
 const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
@@ -211,7 +257,9 @@ function ExerciseColumnItems({
           className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
           style={{ lineHeight }}
         >
-          {item}
+          {renderStyledLineText(item, {
+            highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+          })}
         </li>
       ))}
     </ul>
@@ -242,7 +290,9 @@ function ExerciseMultiColumnGrid({
             className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
-            {item}
+            {renderStyledLineText(item, {
+              highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+            })}
           </li>
         ))}
       </ul>
@@ -261,7 +311,9 @@ function ExerciseMultiColumnGrid({
               className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
-              {item}
+              {renderStyledLineText(item, {
+                highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+              })}
             </li>
           ))}
         </ul>
@@ -299,7 +351,9 @@ function ExerciseMultiColumnGrid({
             className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
-            {item}
+            {renderStyledLineText(item, {
+              highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+            })}
           </li>
         ))}
       </ul>
@@ -559,7 +613,9 @@ function SectionSlide({
                               className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
                               style={{ lineHeight: lineHeight }}
                             >
-                              {item}
+                              {renderStyledLineText(item, {
+                                highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                              })}
                             </li>
                           ))}
                         </ul>
@@ -713,7 +769,9 @@ function DualSectionSlide({
                   className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
                   style={{ lineHeight: lineHeight }}
                 >
-                  {item}
+                  {renderStyledLineText(item, {
+                    highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                  })}
                 </li>
               ))}
             </ul>
@@ -746,7 +804,9 @@ function DualSectionSlide({
                   className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
                   style={{ lineHeight: lineHeight }}
                 >
-                  {item}
+                  {renderStyledLineText(item, {
+                    highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                  })}
                 </li>
               ))}
             </ul>
