@@ -94,6 +94,18 @@ function isNoteLine(item: string): boolean {
   return /^\s*nota\b:?/i.test(item)
 }
 
+function isRoundLine(item: string): boolean {
+  return /\b(ROUND|ROUNDS)\b/i.test(item)
+}
+
+function isFortalecimientoLine(item: string): boolean {
+  return /^\s*fortalecimiento\b:?/i.test(item)
+}
+
+function isSpecialStyledLine(item: string): boolean {
+  return isNoteLine(item) || isRoundLine(item) || isFortalecimientoLine(item)
+}
+
 /** Borde inferior entre líneas dentro de una sola columna. */
 function exerciseGridItemBottomBorderClasses(
   index: number,
@@ -106,8 +118,8 @@ function exerciseGridItemBottomBorderClasses(
   const notePad = 'pt-0.5 pb-1.5 sm:pt-1 sm:pb-2 min-w-0 break-words'
   const beforeNotePad = 'pt-2 pb-0.5 sm:pt-3 sm:pb-1 min-w-0 break-words'
   const b = 'border-b-2 border-b-[#d0d0d0] dark:border-b-gray-500'
-  if (nextItem && isNoteLine(nextItem)) return `${beforeNotePad} border-b-0`
-  if (item && isNoteLine(item)) return `${notePad} border-b-0`
+  if (nextItem && isSpecialStyledLine(nextItem)) return `${beforeNotePad} border-b-0`
+  if (item && isSpecialStyledLine(item)) return `${notePad} border-b-0`
   return index + 1 >= total ? `${basePad} border-b-0` : `${basePad} ${b}`
 }
 
@@ -119,6 +131,21 @@ function splitIntoColumns<T>(items: T[], nCols: 2 | 3): T[][] {
   return cols
 }
 
+function splitWarmupIntoTwoColumns(items: string[]): string[][] {
+  if (items.length < 2) return [items]
+  let splitIndex = -1
+
+  for (let i = 0; i < items.length; i++) {
+    if (!isRoundLine(items[i])) continue
+    if (i === 0) continue
+    splitIndex = i
+    break
+  }
+
+  if (splitIndex <= 0 || splitIndex >= items.length) return [items]
+  return [items.slice(0, splitIndex), items.slice(splitIndex)]
+}
+
 const EXERCISE_LINE_TEXT =
   'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
 const NOTE_LINE_TEXT =
@@ -126,6 +153,7 @@ const NOTE_LINE_TEXT =
 
 const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
 const COL_BORDER_XL = 'xl:border-l-2 xl:border-l-[#d0d0d0] xl:dark:border-l-gray-500 xl:pl-3'
+const COL_BORDER_SM = 'sm:border-l-2 sm:border-l-[#d0d0d0] sm:dark:border-l-gray-500 sm:pl-3'
 
 function ExerciseColumnItems({
   items,
@@ -478,6 +506,7 @@ function SectionSlide({
             ) : (
               blocks.map((block, bi) => {
                 const listLines = block.lines
+                const warmupColumns = isWarmup ? splitWarmupIntoTwoColumns(listLines) : [listLines]
                 const listGridLayout = getExerciseGridLayout(listLines.length, {
                   isEnduranceSection: false,
                   isFuerza,
@@ -494,14 +523,41 @@ function SectionSlide({
                       </p>
                     )}
                     {listLines.length > 0 && (
-                      <ExerciseMultiColumnGrid
-                        items={listLines}
-                        layout={listGridLayout}
-                        lineHeight={lineHeight}
-                        extraLiClass={(item) =>
-                          isWarmup && /\b(ROUND|ROUNDS)\b/i.test(item) ? 'font-bold' : ''
-                        }
-                      />
+                      warmupColumns.length > 1 ? (
+                        <>
+                          <div className="sm:hidden">
+                            <ExerciseMultiColumnGrid
+                              items={listLines}
+                              layout="single"
+                              lineHeight={lineHeight}
+                              extraLiClass={(item) => (isRoundLine(item) ? 'font-bold' : '')}
+                            />
+                          </div>
+                          <div className="hidden sm:grid sm:grid-cols-2 sm:gap-x-6 mt-2 sm:mt-3 md:mt-4">
+                            {warmupColumns.map((columnItems, colIdx) => (
+                              <div
+                                key={`${block.title ?? 'warmup'}-${columnItems[0] ?? 'empty'}-${columnItems.length}`}
+                                className={colIdx > 0 ? COL_BORDER_SM : ''}
+                              >
+                                <ExerciseColumnItems
+                                  items={columnItems}
+                                  lineHeight={lineHeight}
+                                  extraLiClass={(item) => (isRoundLine(item) ? 'font-bold' : '')}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <ExerciseMultiColumnGrid
+                          items={listLines}
+                          layout={listGridLayout}
+                          lineHeight={lineHeight}
+                          extraLiClass={(item) =>
+                            isWarmup && isRoundLine(item) ? 'font-bold' : ''
+                          }
+                        />
+                      )
                     )}
                   </div>
                 )
