@@ -106,20 +106,40 @@ function isSpecialStyledLine(item: string): boolean {
   return isNoteLine(item) || isRoundLine(item) || isFortalecimientoLine(item)
 }
 
+function isForTimeLine(item: string): boolean {
+  return /\bfor\s*time\b/i.test(item)
+}
+
 /** Borde inferior entre líneas dentro de una sola columna. */
 function exerciseGridItemBottomBorderClasses(
   index: number,
   total: number,
   item?: string,
-  nextItem?: string
+  nextItem?: string,
+  ctx?: { isFirstItem?: boolean; compactFirstItemTopSpacing?: boolean }
 ): string {
   if (total <= 0) return ''
   const basePad = 'py-2 sm:py-3 min-w-0 break-words'
+  const basePadCompactFirst = '-mt-0.5 pt-0 pb-2 sm:pt-0 sm:pb-3 min-w-0 break-words'
   const notePad = 'pt-0.5 pb-1.5 sm:pt-1 sm:pb-2 min-w-0 break-words'
+  const subtitlePad = 'pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
+  const subtitlePadCompactFirst = '-mt-0.5 pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const beforeNotePad = 'pt-2 pb-0.5 sm:pt-3 sm:pb-1 min-w-0 break-words'
   const b = 'border-b-2 border-b-[#d0d0d0] dark:border-b-gray-500'
+  const isCurrentSubtitle = !!item && isSubtitleLine(item, ctx)
+  const isCurrentSpecial =
+    !!item && (isSpecialStyledLine(item) || (ctx?.isFirstItem && isForTimeLine(item)))
   if (nextItem && isSpecialStyledLine(nextItem)) return `${beforeNotePad} border-b-0`
-  if (item && isSpecialStyledLine(item)) return `${notePad} border-b-0`
+  if (isCurrentSubtitle) {
+    if (ctx?.isFirstItem && ctx.compactFirstItemTopSpacing) {
+      return `${subtitlePadCompactFirst} border-b-0`
+    }
+    return `${subtitlePad} border-b-0`
+  }
+  if (isCurrentSpecial) return `${notePad} border-b-0`
+  if (ctx?.isFirstItem && ctx.compactFirstItemTopSpacing) {
+    return index + 1 >= total ? `${basePadCompactFirst} border-b-0` : `${basePadCompactFirst} ${b}`
+  }
   return index + 1 >= total ? `${basePad} border-b-0` : `${basePad} ${b}`
 }
 
@@ -153,8 +173,17 @@ const NOTE_LINE_TEXT =
 const SUBTITLE_LINE_TEXT =
   'text-[#666] dark:text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
 
-function getLineTextClasses(item: string): string {
-  if (isRoundLine(item)) return SUBTITLE_LINE_TEXT
+type LineTextContext = {
+  isFirstItem?: boolean
+}
+
+function isSubtitleLine(item: string, ctx?: LineTextContext): boolean {
+  if (ctx?.isFirstItem && isForTimeLine(item)) return true
+  return isRoundLine(item)
+}
+
+function getLineTextClasses(item: string, ctx?: LineTextContext): string {
+  if (isSubtitleLine(item, ctx)) return SUBTITLE_LINE_TEXT
   if (isNoteLine(item)) return NOTE_LINE_TEXT
   return EXERCISE_LINE_TEXT
 }
@@ -167,17 +196,19 @@ function ExerciseColumnItems({
   items,
   lineHeight,
   extraLiClass,
+  compactFirstItemTopSpacing,
 }: {
   items: string[]
   lineHeight: number
   extraLiClass?: (item: string) => string
+  compactFirstItemTopSpacing?: boolean
 }) {
   return (
     <ul className="list-none p-0 m-0 flex flex-col">
       {items.map((item, i) => (
         <li
           key={`${item}-${items.length}`}
-          className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+          className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
           style={{ lineHeight }}
         >
           {item}
@@ -192,11 +223,13 @@ function ExerciseMultiColumnGrid({
   layout,
   lineHeight,
   extraLiClass,
+  compactFirstItemTopSpacing,
 }: {
   items: string[]
   layout: ExerciseGridLayout
   lineHeight: number
   extraLiClass?: (item: string) => string
+  compactFirstItemTopSpacing?: boolean
 }) {
   const gapRow = 'mt-2 sm:mt-3 md:mt-4'
 
@@ -206,7 +239,7 @@ function ExerciseMultiColumnGrid({
         {items.map((item, i) => (
           <li
             key={`${item}-${items.length}`}
-            className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+            className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
             {item}
@@ -225,7 +258,7 @@ function ExerciseMultiColumnGrid({
           {items.map((item, i) => (
             <li
               key={`${item}-${items.length}`}
-              className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
               {item}
@@ -240,6 +273,7 @@ function ExerciseMultiColumnGrid({
               items={col2[0]}
               lineHeight={lineHeight}
               extraLiClass={extraLiClass}
+              compactFirstItemTopSpacing={compactFirstItemTopSpacing}
             />
           </div>
           <div className={`min-w-0 flex-1 ${COL_BORDER_MD}`}>
@@ -247,6 +281,7 @@ function ExerciseMultiColumnGrid({
               items={col2[1]}
               lineHeight={lineHeight}
               extraLiClass={extraLiClass}
+              compactFirstItemTopSpacing={compactFirstItemTopSpacing}
             />
           </div>
         </div>
@@ -261,7 +296,7 @@ function ExerciseMultiColumnGrid({
         {items.map((item, i) => (
           <li
             key={`${item}-${items.length}`}
-            className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+            className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
             {item}
@@ -276,6 +311,7 @@ function ExerciseMultiColumnGrid({
             items={col2[0]}
             lineHeight={lineHeight}
             extraLiClass={extraLiClass}
+            compactFirstItemTopSpacing={compactFirstItemTopSpacing}
           />
         </div>
         <div className={`min-w-0 flex-1 ${COL_BORDER_MD}`}>
@@ -283,6 +319,7 @@ function ExerciseMultiColumnGrid({
             items={col2[1]}
             lineHeight={lineHeight}
             extraLiClass={extraLiClass}
+            compactFirstItemTopSpacing={compactFirstItemTopSpacing}
           />
         </div>
       </div>
@@ -294,7 +331,12 @@ function ExerciseMultiColumnGrid({
             key={`${col.join('|')}-${col.length}`}
             className={`min-w-0 flex-1 ${ci > 0 ? COL_BORDER_XL : ''}`}
           >
-            <ExerciseColumnItems items={col} lineHeight={lineHeight} extraLiClass={extraLiClass} />
+            <ExerciseColumnItems
+              items={col}
+              lineHeight={lineHeight}
+              extraLiClass={extraLiClass}
+              compactFirstItemTopSpacing={compactFirstItemTopSpacing}
+            />
           </div>
         ))}
       </div>
@@ -341,6 +383,7 @@ function SectionSlide({
   const restLines = items.slice(1)
   const isMetcon = label.toUpperCase().startsWith('METCON')
   const isWarmup = label.toUpperCase().startsWith('WARM')
+  const isAccesorios = label.toUpperCase().startsWith('ACCESORIOS')
   const isFuerza = label === 'STRENGTH'
   const labelBg = 'bg-black'
   const blocks = buildBlocks(restLines)
@@ -366,7 +409,11 @@ function SectionSlide({
         {restLines.length > 0 ? (
           <>
             {!isMetcon && (
-              <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+              <p
+                className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                  isAccesorios ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
+                }`}
+              >
                 {firstLine}
               </p>
             )}
@@ -374,11 +421,17 @@ function SectionSlide({
               <>
                 {isEnduranceSection ? (
                   <div className="mb-2 sm:mb-3 md:mb-4">
-                    <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+                    <p
+                      className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                        restLines[0] && isSubtitleLine(restLines[0], { isFirstItem: true })
+                          ? 'mb-0 leading-tight'
+                          : ''
+                      }`}
+                    >
                       {firstLine}
                     </p>
                     {restLines[0] && (
-                      <p className="text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] mt-0.5 font-medium">
+                      <p className="text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium">
                         {restLines[0]}
                       </p>
                     )}
@@ -394,30 +447,40 @@ function SectionSlide({
                           ? block.lines[0]
                           : firstLine
                     if (block.title === 'Crossfit' || block.title === null) {
+                      const hasSubtitleTitleLine = isSubtitleLine(firstLine, { isFirstItem: true })
                       return (
                         <div
                           key={`${block.title ?? 'Crossfit'}-${titleLine}`}
                           className="mb-2 sm:mb-3 md:mb-4"
                         >
-                          <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+                          <p
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                              hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
+                            }`}
+                          >
                             Crossfit
                           </p>
-                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] mt-0.5">
+                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight">
                             {firstLine}
                           </p>
                         </div>
                       )
                     }
                     if (block.title === 'Sollte funcional') {
+                      const hasSubtitleTitleLine = isSubtitleLine(titleLine, { isFirstItem: true })
                       return (
                         <div
                           key={`${block.title ?? 'Sollte funcional'}-${titleLine}`}
                           className="mb-2 sm:mb-3 md:mb-4"
                         >
-                          <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+                          <p
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                              hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
+                            }`}
+                          >
                             Sollte funcional
                           </p>
-                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] mt-0.5">
+                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight">
                             {titleLine}
                           </p>
                         </div>
@@ -493,7 +556,7 @@ function SectionSlide({
                           {chunk.map((item, i) => (
                             <li
                               key={`${item}-${chunk.length}`}
-                              className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1])} ${i === 0 ? 'font-bold' : ''}`}
+                              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
                               style={{ lineHeight: lineHeight }}
                             >
                               {item}
@@ -514,6 +577,8 @@ function SectionSlide({
             ) : (
               blocks.map((block, bi) => {
                 const listLines = block.lines
+                const hasSubtitleFirstListItem =
+                  listLines.length > 0 && isSubtitleLine(listLines[0], { isFirstItem: true })
                 const warmupColumns = isWarmup ? splitWarmupIntoTwoColumns(listLines) : [listLines]
                 const listGridLayout = getExerciseGridLayout(listLines.length, {
                   isEnduranceSection: false,
@@ -523,10 +588,18 @@ function SectionSlide({
                 return (
                   <div
                     key={`${block.title ?? 'block'}-${listLines.join('|')}`}
-                    className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}
+                    className={bi > 0 ? (isAccesorios ? 'mt-1 sm:mt-1.5 md:mt-2' : 'mt-2 sm:mt-3 md:mt-4') : ''}
                   >
                     {block.title && (
-                      <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2">
+                      <p
+                        className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                          isAccesorios
+                            ? 'mb-0 leading-tight'
+                            : hasSubtitleFirstListItem
+                              ? 'mb-0 leading-tight'
+                              : 'mb-1 sm:mb-2'
+                        }`}
+                      >
                         {block.title}
                       </p>
                     )}
@@ -538,6 +611,7 @@ function SectionSlide({
                               items={listLines}
                               layout="single"
                               lineHeight={lineHeight}
+                              compactFirstItemTopSpacing={isAccesorios}
                             />
                           </div>
                           <div className="hidden sm:grid sm:grid-cols-2 sm:gap-x-6 mt-2 sm:mt-3 md:mt-4">
@@ -549,6 +623,7 @@ function SectionSlide({
                                 <ExerciseColumnItems
                                   items={columnItems}
                                   lineHeight={lineHeight}
+                                  compactFirstItemTopSpacing={isAccesorios}
                                 />
                               </div>
                             ))}
@@ -559,6 +634,7 @@ function SectionSlide({
                           items={listLines}
                           layout={listGridLayout}
                           lineHeight={lineHeight}
+                          compactFirstItemTopSpacing={isAccesorios}
                         />
                       )
                     )}
@@ -598,6 +674,10 @@ function DualSectionSlide({
   const functionalItems = functionalLines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
+  const hasCrossfitSubtitleFirstItem =
+    crossfitItems.length > 0 && isSubtitleLine(crossfitItems[0], { isFirstItem: true })
+  const hasFunctionalSubtitleFirstItem =
+    functionalItems.length > 0 && isSubtitleLine(functionalItems[0], { isFirstItem: true })
 
   if (crossfitItems.length === 0 && functionalItems.length === 0) return null
 
@@ -619,14 +699,18 @@ function DualSectionSlide({
             className="flex min-h-0 flex-1 flex-col justify-start border-l border-black p-3 sm:p-4 md:p-5 lg:p-6 dark:border-gray-500"
             style={{ fontSize: `${fontSize}rem` }}
           >
-            <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+            <p
+              className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
+              }`}
+            >
               Crossfit
             </p>
             <ul className="list-none p-0 m-0 flex flex-col">
               {crossfitItems.map((item, i) => (
                 <li
                   key={`${item}-${crossfitItems.length}`}
-                  className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1])}`}
+                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
                   style={{ lineHeight: lineHeight }}
                 >
                   {item}
@@ -648,14 +732,18 @@ function DualSectionSlide({
             className="flex min-h-0 flex-1 flex-col justify-start border-l border-black p-3 sm:p-4 md:p-5 lg:p-6 dark:border-gray-500"
             style={{ fontSize: `${fontSize}rem` }}
           >
-            <p className="font-semibold mb-2 sm:mb-3 md:mb-4 text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+            <p
+              className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
+              }`}
+            >
               Funcional
             </p>
             <ul className="list-none p-0 m-0 flex flex-col">
               {functionalItems.map((item, i) => (
                 <li
                   key={`${item}-${functionalItems.length}`}
-                  className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1])}`}
+                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
                   style={{ lineHeight: lineHeight }}
                 >
                   {item}
@@ -713,20 +801,20 @@ function getSections(wod: WodDoc | undefined): WodSection[] {
   if (hasBothStrength) {
     sections.push({
       type: 'dual-section',
-      label: 'STRENGHT',
+      label: 'STRENGTH',
       crossfitLines: strength.split('\n').filter((l) => l.trim()),
       functionalLines: functionalStrength.split('\n').filter((l) => l.trim()),
     })
   } else if (strength.trim()) {
     sections.push({
       type: 'section',
-      label: 'STRENGHT',
+      label: 'STRENGTH',
       lines: strength.split('\n').filter((l) => l.trim()),
     })
   } else if (functionalStrength.trim()) {
     sections.push({
       type: 'section',
-      label: 'STRENGHT',
+      label: 'STRENGTH',
       lines: functionalStrength.split('\n').filter((l) => l.trim()),
     })
   }
@@ -1535,7 +1623,7 @@ export default function DashboardPage() {
                       }
 
                       const isMetcon = slideSection.label.toUpperCase().startsWith('METCON')
-                      const isFuerza = slideSection.label === 'STRENGHT'
+                      const isFuerza = slideSection.label === 'STRENGTH'
                       const metconCards =
                         isMetcon && slideSection.type === 'section'
                           ? (() => {
