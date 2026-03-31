@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${heebo.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${heebo.variable} font-sans antialiased`}>
         <ThemeInit />
         {children}
       </body>
