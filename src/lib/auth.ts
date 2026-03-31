@@ -12,10 +12,7 @@ const ADMINS_PATH = ['crossfitconnect-app', 'nuevaVersion', 'admins'] as const
 
 export async function checkIsAdmin(uid: string): Promise<boolean> {
   try {
-    const adminsQuery = query(
-      collection(db, ...ADMINS_PATH),
-      where('firebaseUID', '==', uid)
-    )
+    const adminsQuery = query(collection(db, ...ADMINS_PATH), where('firebaseUID', '==', uid))
     const querySnapshot = await getDocs(adminsQuery)
     return !querySnapshot.empty
   } catch (_error) {
@@ -25,10 +22,7 @@ export async function checkIsAdmin(uid: string): Promise<boolean> {
 
 export async function getAdminHeadquarterByUid(uid: string): Promise<string | null> {
   try {
-    const adminsQuery = query(
-      collection(db, ...ADMINS_PATH),
-      where('firebaseUID', '==', uid)
-    )
+    const adminsQuery = query(collection(db, ...ADMINS_PATH), where('firebaseUID', '==', uid))
     const querySnapshot = await getDocs(adminsQuery)
     const doc = querySnapshot.docs[0]
     if (!doc) return null

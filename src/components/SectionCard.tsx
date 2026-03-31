@@ -24,15 +24,17 @@ export default function SectionCard({ label, lines }: { label: string; lines: st
       >
         {label}
       </div>
-      <div className={`flex-1 border-l p-5 ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}>
+      <div
+        className={`flex-1 border-l p-5 ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}
+      >
         {restLines.length > 0 ? (
           <>
             <p className="font-semibold mb-3 text-[#333] dark:text-gray-200">{firstLine}</p>
-            <ul className="list-none p-0 m-0">
+            <ul className="list-none p-0 m-0 flex flex-col divide-y-2 divide-[#d0d0d0] dark:divide-gray-500">
               {restLines.map((item, i) => (
                 <li
                   key={i}
-                  className="text-[#333] dark:text-gray-200 text-sm leading-relaxed py-1 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
+                  className="text-[#333] dark:text-gray-200 text-sm leading-relaxed py-2 first:pt-0 last:pb-0 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
                 >
                   {item}
                 </li>

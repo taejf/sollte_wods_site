@@ -19,18 +19,22 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
   const description = wod.description || ''
   const metcoes = wod.metcoes || wod.metcoms || []
   const warmup = wod.warmup || wod.warmUp || ''
-  
+
   let strength = ''
   let functionalStrength = ''
-  
+
   if (typeof wod.strength === 'string') {
     strength = wod.strength
-    functionalStrength = typeof wod.functionalDescription === 'string' ? wod.functionalDescription : ''
+    functionalStrength =
+      typeof wod.functionalDescription === 'string' ? wod.functionalDescription : ''
   } else if (typeof wod.strength === 'object' && wod.strength !== null) {
     strength = typeof wod.strength.description === 'string' ? wod.strength.description : ''
-    functionalStrength = typeof wod.strength.functionalDescription === 'string' ? wod.strength.functionalDescription : ''
+    functionalStrength =
+      typeof wod.strength.functionalDescription === 'string'
+        ? wod.strength.functionalDescription
+        : ''
   }
-  
+
   const additional = wod.additional || ''
 
   return (
@@ -42,10 +46,13 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
 
       {warmup && <SectionCard label="WARM UP" lines={warmup.split('\n').filter((l) => l.trim())} />}
       {strength && (
-        <SectionCard label="FUERZA" lines={strength.split('\n').filter((l) => l.trim())} />
+        <SectionCard label="STRENGTH" lines={strength.split('\n').filter((l) => l.trim())} />
       )}
       {functionalStrength && (
-        <SectionCard label="FUERZA" lines={functionalStrength.split('\n').filter((l) => l.trim())} />
+        <SectionCard
+          label="STRENGTH"
+          lines={functionalStrength.split('\n').filter((l) => l.trim())}
+        />
       )}
       {metcoes && metcoes.length > 0 && (
         <div className="w-screen relative left-1/2 -translate-x-1/2 bg-black py-3 px-4 my-6">
@@ -59,14 +66,22 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
         const desc = typeof descRaw === 'string' ? descRaw : ''
         const funcDescRaw = metcon?.functionalDescription || ''
         const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
-        
+
         return (
           <>
             {desc.trim() && (
-              <SectionCard key={`${index}-desc`} label={`METCON ${index + 1}`} lines={desc.split('\n').filter((l) => l.trim())} />
+              <SectionCard
+                key={`${index}-desc`}
+                label={`METCON ${index + 1}`}
+                lines={desc.split('\n').filter((l) => l.trim())}
+              />
             )}
             {funcDesc.trim() && (
-              <SectionCard key={`${index}-func`} label={`METCON ${index + 1}`} lines={funcDesc.split('\n').filter((l) => l.trim())} />
+              <SectionCard
+                key={`${index}-func`}
+                label={`METCON ${index + 1}`}
+                lines={funcDesc.split('\n').filter((l) => l.trim())}
+              />
             )}
           </>
         )

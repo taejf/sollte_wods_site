@@ -15,6 +15,10 @@
     "admins:pin": "node scripts/set-admin-pins.js"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@material/web": "^2.4.1",
+    "@mui/material": "^6.4.0",
     "bcryptjs": "^2.4.3",
     "firebase": "^11.2.0",
     "firebase-admin": "^13.0.1",
