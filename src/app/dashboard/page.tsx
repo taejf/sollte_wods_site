@@ -257,7 +257,10 @@ function ExerciseMultiColumnGrid({
         className={`hidden xl:flex xl:flex-row xl:items-stretch gap-x-3 sm:gap-x-4 md:gap-x-6 ${gapRow}`}
       >
         {col3.map((col, ci) => (
-          <div key={`${col.join('|')}-${col.length}`} className={`min-w-0 flex-1 ${ci > 0 ? COL_BORDER_XL : ''}`}>
+          <div
+            key={`${col.join('|')}-${col.length}`}
+            className={`min-w-0 flex-1 ${ci > 0 ? COL_BORDER_XL : ''}`}
+          >
             <ExerciseColumnItems items={col} lineHeight={lineHeight} extraLiClass={extraLiClass} />
           </div>
         ))}
@@ -359,7 +362,10 @@ function SectionSlide({
                           : firstLine
                     if (block.title === 'Crossfit' || block.title === null) {
                       return (
-                        <div key={`${block.title ?? 'Crossfit'}-${titleLine}`} className="mb-2 sm:mb-3 md:mb-4">
+                        <div
+                          key={`${block.title ?? 'Crossfit'}-${titleLine}`}
+                          className="mb-2 sm:mb-3 md:mb-4"
+                        >
                           <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                             Crossfit
                           </p>
@@ -371,7 +377,10 @@ function SectionSlide({
                     }
                     if (block.title === 'Sollte funcional') {
                       return (
-                        <div key={`${block.title ?? 'Sollte funcional'}-${titleLine}`} className="mb-2 sm:mb-3 md:mb-4">
+                        <div
+                          key={`${block.title ?? 'Sollte funcional'}-${titleLine}`}
+                          className="mb-2 sm:mb-3 md:mb-4"
+                        >
                           <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                             Sollte funcional
                           </p>
@@ -383,7 +392,10 @@ function SectionSlide({
                     }
                     if (isEnduranceBlock) {
                       return (
-                        <div key={`${block.title ?? BLOCK_TITLE_ENDURANCE}-${titleLine}`} className="mb-2 sm:mb-3 md:mb-4">
+                        <div
+                          key={`${block.title ?? BLOCK_TITLE_ENDURANCE}-${titleLine}`}
+                          className="mb-2 sm:mb-3 md:mb-4"
+                        >
                           <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                             {titleLine}
                           </p>
@@ -441,7 +453,10 @@ function SectionSlide({
                       }}
                     >
                       {chunks.map((chunk) => (
-                        <ul key={`${chunk.join('|')}-${chunk.length}`} className="list-none p-0 m-0 flex flex-col">
+                        <ul
+                          key={`${chunk.join('|')}-${chunk.length}`}
+                          className="list-none p-0 m-0 flex flex-col"
+                        >
                           {chunk.map((item, i) => (
                             <li
                               key={`${item}-${chunk.length}`}
@@ -472,7 +487,10 @@ function SectionSlide({
                   isWarmup,
                 })
                 return (
-                  <div key={`${block.title ?? 'block'}-${listLines.join('|')}`} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
+                  <div
+                    key={`${block.title ?? 'block'}-${listLines.join('|')}`}
+                    className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}
+                  >
                     {block.title && (
                       <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2">
                         {block.title}
@@ -828,7 +846,19 @@ export default function DashboardPage() {
   currentIndexRef.current = currentIndex
   const len = carouselSections.length
   const useInfinite = len > 1
-  const slidesToRender = useInfinite ? [...carouselSections, carouselSections[0]] : carouselSections
+  const slidesToRender = useMemo(() => {
+    const baseSlides = useInfinite ? [...carouselSections, carouselSections[0]] : carouselSections
+    const keyCount = new Map<string, number>()
+    return baseSlides.map((slideSection) => {
+      const seed =
+        slideSection.type === 'section'
+          ? `section|${slideSection.label}|${slideSection.lines.join('|')}`
+          : `dual|${slideSection.label}|${slideSection.crossfitLines.join('|')}|${slideSection.functionalLines.join('|')}`
+      const count = (keyCount.get(seed) ?? 0) + 1
+      keyCount.set(seed, count)
+      return { ...slideSection, renderKey: `${seed}#${count}` }
+    })
+  }, [carouselSections, useInfinite])
   const [skipTransition, setSkipTransition] = useState(false)
 
   useEffect(() => {
@@ -1422,7 +1452,7 @@ export default function DashboardPage() {
                       if (slideSection.type === 'dual-section') {
                         return (
                           <section
-                            key={`dual-${slideSection.label}-${slideSection.crossfitLines.join('|')}-${slideSection.functionalLines.join('|')}`}
+                            key={slideSection.renderKey}
                             className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                             aria-label={
                               useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
@@ -1565,7 +1595,7 @@ export default function DashboardPage() {
                         slideSection.lines[0]?.trim().toLowerCase().includes('round')
                       return (
                         <section
-                          key={`section-${slideSection.type}-${slideSection.label}-${slideSection.type === 'section' ? slideSection.lines.join('|') : ''}`}
+                          key={slideSection.renderKey}
                           className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                           aria-label={
                             useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
