@@ -26,6 +26,7 @@ export default function DividedExerciseLines({
 }) {
   const filtered = items.filter((line) => line.trim())
   if (filtered.length === 0) return null
+  const keyCount = new Map<string, number>()
 
   return (
     <Stack
@@ -35,7 +36,11 @@ export default function DividedExerciseLines({
     >
       {filtered.map((item, i) => (
         <div
-          key={i}
+          key={`${item}-${(() => {
+            const count = (keyCount.get(item) ?? 0) + 1
+            keyCount.set(item, count)
+            return count
+          })()}`}
           className={lineClassName}
           style={lineStyle}
           data-first-line-bold={firstLineBold && i === 0 ? true : undefined}

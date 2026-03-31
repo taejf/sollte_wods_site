@@ -6,6 +6,7 @@ export default function SectionCard({ label, lines }: { label: string; lines: st
 
   const firstLine = items[0]
   const restLines = items.slice(1)
+  const keyCount = new Map<string, number>()
 
   const isMetcon = label.toUpperCase().startsWith('METCON')
   const labelBg = 'bg-black'
@@ -31,9 +32,13 @@ export default function SectionCard({ label, lines }: { label: string; lines: st
           <>
             <p className="font-semibold mb-3 text-[#333] dark:text-gray-200">{firstLine}</p>
             <ul className="list-none p-0 m-0 flex flex-col divide-y-2 divide-[#d0d0d0] dark:divide-gray-500">
-              {restLines.map((item, i) => (
+              {restLines.map((item) => (
                 <li
-                  key={i}
+                  key={`${item}-${(() => {
+                    const count = (keyCount.get(item) ?? 0) + 1
+                    keyCount.set(item, count)
+                    return count
+                  })()}`}
                   className="text-[#333] dark:text-gray-200 text-sm leading-relaxed py-2 first:pt-0 last:pb-0 before:content-['•_'] before:text-[#4A90E2] before:font-bold before:mr-2"
                 >
                   {item}

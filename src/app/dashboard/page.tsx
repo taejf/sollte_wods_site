@@ -1,9 +1,10 @@
 'use client'
 
-import { collection, getDocs, orderBy, query, type QuerySnapshot } from 'firebase/firestore'
+import type { QuerySnapshot } from 'firebase/firestore'
+import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { applyTheme, getSavedTheme } from '@/components/ThemeInit'
 import type { WodDoc } from '@/components/WodCard'
 import { checkIsAdmin, getAdminHeadquarterByUid, logoutUser, onAuthChange } from '@/lib/auth'
@@ -22,8 +23,8 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
   let currentLines: string[] = []
   let currentTitle: string | null = null
 
-  for (let i = 0; i < lines.length; i++) {
-    const t = lines[i].trim()
+  for (const line of lines) {
+    const t = line.trim()
     const isSollte = /^sollte\s+functional:?/i.test(t) || /^sollte\s+funcional:?/i.test(t)
     const isAccesorios = /^accesorios:?/i.test(t)
     const isEndurance = /\bEndurance\b/i.test(t)
@@ -142,7 +143,7 @@ function ExerciseColumnItems({
     <ul className="list-none p-0 m-0 flex flex-col">
       {items.map((item, i) => (
         <li
-          key={i}
+          key={`${item}-${items.length}`}
           className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
           style={{ lineHeight }}
         >
@@ -171,7 +172,7 @@ function ExerciseMultiColumnGrid({
       <ul className={`list-none m-0 grid grid-cols-1 gap-y-0 p-0 ${gapRow}`}>
         {items.map((item, i) => (
           <li
-            key={i}
+            key={`${item}-${items.length}`}
             className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
@@ -190,7 +191,7 @@ function ExerciseMultiColumnGrid({
         <ul className={`list-none m-0 flex flex-col p-0 md:hidden ${gapRow}`}>
           {items.map((item, i) => (
             <li
-              key={i}
+              key={`${item}-${items.length}`}
               className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
@@ -226,7 +227,7 @@ function ExerciseMultiColumnGrid({
       <ul className={`list-none m-0 flex flex-col p-0 md:hidden ${gapRow}`}>
         {items.map((item, i) => (
           <li
-            key={i}
+            key={`${item}-${items.length}`}
             className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
@@ -256,7 +257,7 @@ function ExerciseMultiColumnGrid({
         className={`hidden xl:flex xl:flex-row xl:items-stretch gap-x-3 sm:gap-x-4 md:gap-x-6 ${gapRow}`}
       >
         {col3.map((col, ci) => (
-          <div key={ci} className={`min-w-0 flex-1 ${ci > 0 ? COL_BORDER_XL : ''}`}>
+          <div key={`${col.join('|')}-${col.length}`} className={`min-w-0 flex-1 ${ci > 0 ? COL_BORDER_XL : ''}`}>
             <ExerciseColumnItems items={col} lineHeight={lineHeight} extraLiClass={extraLiClass} />
           </div>
         ))}
@@ -347,7 +348,7 @@ function SectionSlide({
                     )}
                   </div>
                 ) : (
-                  blocks.map((block, bi) => {
+                  blocks.map((block) => {
                     const isSollteBlock = block.title === 'Sollte funcional'
                     const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
                     const titleLine =
@@ -358,7 +359,7 @@ function SectionSlide({
                           : firstLine
                     if (block.title === 'Crossfit' || block.title === null) {
                       return (
-                        <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
+                        <div key={`${block.title ?? 'Crossfit'}-${titleLine}`} className="mb-2 sm:mb-3 md:mb-4">
                           <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                             Crossfit
                           </p>
@@ -370,7 +371,7 @@ function SectionSlide({
                     }
                     if (block.title === 'Sollte funcional') {
                       return (
-                        <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
+                        <div key={`${block.title ?? 'Sollte funcional'}-${titleLine}`} className="mb-2 sm:mb-3 md:mb-4">
                           <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                             Sollte funcional
                           </p>
@@ -382,7 +383,7 @@ function SectionSlide({
                     }
                     if (isEnduranceBlock) {
                       return (
-                        <div key={bi} className="mb-2 sm:mb-3 md:mb-4">
+                        <div key={`${block.title ?? BLOCK_TITLE_ENDURANCE}-${titleLine}`} className="mb-2 sm:mb-3 md:mb-4">
                           <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
                             {titleLine}
                           </p>
@@ -392,7 +393,7 @@ function SectionSlide({
                     if (block.title) {
                       return (
                         <p
-                          key={bi}
+                          key={`${block.title}-${block.lines.join('|')}`}
                           className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2"
                         >
                           {block.title}
@@ -439,11 +440,11 @@ function SectionSlide({
                         gridTemplateColumns: `repeat(${chunks.length}, minmax(0, 1fr))`,
                       }}
                     >
-                      {chunks.map((chunk, ci) => (
-                        <ul key={ci} className="list-none p-0 m-0 flex flex-col">
+                      {chunks.map((chunk) => (
+                        <ul key={`${chunk.join('|')}-${chunk.length}`} className="list-none p-0 m-0 flex flex-col">
                           {chunk.map((item, i) => (
                             <li
-                              key={i}
+                              key={`${item}-${chunk.length}`}
                               className={`${isNoteLine(item) ? NOTE_LINE_TEXT : 'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1])} ${i === 0 ? 'font-bold' : ''}`}
                               style={{ lineHeight: lineHeight }}
                             >
@@ -471,7 +472,7 @@ function SectionSlide({
                   isWarmup,
                 })
                 return (
-                  <div key={bi} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
+                  <div key={`${block.title ?? 'block'}-${listLines.join('|')}`} className={bi > 0 ? 'mt-2 sm:mt-3 md:mt-4' : ''}>
                     {block.title && (
                       <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2">
                         {block.title}
@@ -550,7 +551,7 @@ function DualSectionSlide({
             <ul className="list-none p-0 m-0 flex flex-col">
               {crossfitItems.map((item, i) => (
                 <li
-                  key={i}
+                  key={`${item}-${crossfitItems.length}`}
                   className={`${isNoteLine(item) ? NOTE_LINE_TEXT : 'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1])}`}
                   style={{ lineHeight: lineHeight }}
                 >
@@ -579,7 +580,7 @@ function DualSectionSlide({
             <ul className="list-none p-0 m-0 flex flex-col">
               {functionalItems.map((item, i) => (
                 <li
-                  key={i}
+                  key={`${item}-${functionalItems.length}`}
                   className={`${isNoteLine(item) ? NOTE_LINE_TEXT : 'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1])}`}
                   style={{ lineHeight: lineHeight }}
                 >
@@ -975,7 +976,7 @@ export default function DashboardPage() {
     }
   }
 
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     if (!useInfinite) return
     if (currentIndex === 0) {
       setSkipTransition(true)
@@ -983,8 +984,8 @@ export default function DashboardPage() {
     } else {
       setCurrentIndex((i) => i - 1)
     }
-  }
-  const goNext = () => {
+  }, [currentIndex, len, useInfinite])
+  const goNext = useCallback(() => {
     if (!useInfinite) return
     if (currentIndex === len) {
       setSkipTransition(true)
@@ -994,7 +995,7 @@ export default function DashboardPage() {
     } else {
       setCurrentIndex((i) => i + 1)
     }
-  }
+  }, [currentIndex, len, useInfinite])
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -1421,7 +1422,7 @@ export default function DashboardPage() {
                       if (slideSection.type === 'dual-section') {
                         return (
                           <section
-                            key={index}
+                            key={`dual-${slideSection.label}-${slideSection.crossfitLines.join('|')}-${slideSection.functionalLines.join('|')}`}
                             className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                             aria-label={
                               useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
@@ -1564,7 +1565,7 @@ export default function DashboardPage() {
                         slideSection.lines[0]?.trim().toLowerCase().includes('round')
                       return (
                         <section
-                          key={index}
+                          key={`section-${slideSection.type}-${slideSection.label}-${slideSection.type === 'section' ? slideSection.lines.join('|') : ''}`}
                           className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                           aria-label={
                             useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
@@ -1590,9 +1591,9 @@ export default function DashboardPage() {
                               </div>
                             ) : twoCards ? (
                               <div className="mx-auto flex w-full max-w-[96%] shrink-0 items-stretch gap-2 sm:gap-3 md:gap-4">
-                                {twoCards.map((card, ci) => (
+                                {twoCards.map((card) => (
                                   <div
-                                    key={ci}
+                                    key={`${card.label}-${card.lines.join('|')}`}
                                     className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch"
                                   >
                                     <SectionSlide

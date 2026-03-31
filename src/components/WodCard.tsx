@@ -36,6 +36,8 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
   }
 
   const additional = wod.additional || ''
+  const metconKeyCount = new Map<string, number>()
+  let metconCount = 0
 
   return (
     <div className="mb-6">
@@ -61,29 +63,31 @@ export default function WodCard({ wod }: { wod: WodDoc }) {
           </p>
         </div>
       )}
-      {metcoes?.map((metcon, index) => {
+      {metcoes?.map((metcon) => {
+        metconCount += 1
         const descRaw = metcon?.description || ''
         const desc = typeof descRaw === 'string' ? descRaw : ''
         const funcDescRaw = metcon?.functionalDescription || ''
         const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
+        const baseKey = `${desc}||${funcDesc}`
+        const count = (metconKeyCount.get(baseKey) ?? 0) + 1
+        metconKeyCount.set(baseKey, count)
 
         return (
-          <>
+          <div key={`${baseKey}-${count}`}>
             {desc.trim() && (
               <SectionCard
-                key={`${index}-desc`}
-                label={`METCON ${index + 1}`}
+                label={`METCON ${metconCount}`}
                 lines={desc.split('\n').filter((l) => l.trim())}
               />
             )}
             {funcDesc.trim() && (
               <SectionCard
-                key={`${index}-func`}
-                label={`METCON ${index + 1}`}
+                label={`METCON ${metconCount}`}
                 lines={funcDesc.split('\n').filter((l) => l.trim())}
               />
             )}
-          </>
+          </div>
         )
       })}
       {additional && (
