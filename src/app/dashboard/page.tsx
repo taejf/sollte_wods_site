@@ -151,6 +151,10 @@ const EXERCISE_LINE_TEXT =
 const NOTE_LINE_TEXT =
   'text-[#333] dark:text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
 
+function getLineTextClasses(item: string): string {
+  return isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT
+}
+
 const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
 const COL_BORDER_XL = 'xl:border-l-2 xl:border-l-[#d0d0d0] xl:dark:border-l-gray-500 xl:pl-3'
 const COL_BORDER_SM = 'sm:border-l-2 sm:border-l-[#d0d0d0] sm:dark:border-l-gray-500 sm:pl-3'
@@ -169,7 +173,7 @@ function ExerciseColumnItems({
       {items.map((item, i) => (
         <li
           key={`${item}-${items.length}`}
-          className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+          className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
           style={{ lineHeight }}
         >
           {item}
@@ -198,7 +202,7 @@ function ExerciseMultiColumnGrid({
         {items.map((item, i) => (
           <li
             key={`${item}-${items.length}`}
-            className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+            className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
             {item}
@@ -217,7 +221,7 @@ function ExerciseMultiColumnGrid({
           {items.map((item, i) => (
             <li
               key={`${item}-${items.length}`}
-              className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+              className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
               {item}
@@ -253,7 +257,7 @@ function ExerciseMultiColumnGrid({
         {items.map((item, i) => (
           <li
             key={`${item}-${items.length}`}
-            className={`${isNoteLine(item) ? NOTE_LINE_TEXT : EXERCISE_LINE_TEXT} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
+            className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1])} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
             {item}
@@ -485,7 +489,7 @@ function SectionSlide({
                           {chunk.map((item, i) => (
                             <li
                               key={`${item}-${chunk.length}`}
-                              className={`${isNoteLine(item) ? NOTE_LINE_TEXT : 'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1])} ${i === 0 ? 'font-bold' : ''}`}
+                              className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1])} ${i === 0 ? 'font-bold' : ''}`}
                               style={{ lineHeight: lineHeight }}
                             >
                               {item}
@@ -623,7 +627,7 @@ function DualSectionSlide({
               {crossfitItems.map((item, i) => (
                 <li
                   key={`${item}-${crossfitItems.length}`}
-                  className={`${isNoteLine(item) ? NOTE_LINE_TEXT : 'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1])}`}
+                  className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1])}`}
                   style={{ lineHeight: lineHeight }}
                 >
                   {item}
@@ -652,7 +656,7 @@ function DualSectionSlide({
               {functionalItems.map((item, i) => (
                 <li
                   key={`${item}-${functionalItems.length}`}
-                  className={`${isNoteLine(item) ? NOTE_LINE_TEXT : 'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1])}`}
+                  className={`${getLineTextClasses(item)} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1])}`}
                   style={{ lineHeight: lineHeight }}
                 >
                   {item}
