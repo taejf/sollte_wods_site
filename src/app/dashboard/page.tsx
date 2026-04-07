@@ -177,6 +177,22 @@ const NOTE_LINE_TEXT =
 const SUBTITLE_LINE_TEXT =
   'text-[#666] dark:text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
 
+/**
+ * Mapa de puntos donde se decide la tipografía por línea (y tokens #00FFFF / énfasis).
+ *
+ * Pipeline unificado: `getLineTextClasses` + `exerciseGridItemBottomBorderClasses` + `renderStyledLineText`.
+ * - `ExerciseColumnItems`: listas en columnas (grid 2/3 cols y warmup en dos columnas).
+ * - `ExerciseMultiColumnGrid`: modo `single`; modo `twoCol` (lista móvil + columnas desktop);
+ *   modo `threeCol` (lista móvil + 2 cols md + 3 cols xl).
+ * - `SectionSlide`: METCON con chunks agrupados (`chunk.map` → `<li>`); si no hay grupos,
+ *   delega en `ExerciseMultiColumnGrid`; warmup/accesorios/strength vía `ExerciseMultiColumnGrid` / `ExerciseColumnItems`.
+ * - `DualSectionSlide`: `<ul>` crossfit y funcional (`crossfitItems` / `functionalItems`).
+ *
+ * Fuera de ese pipeline (cabeceras fijas, no pasan por getLineTextClasses):
+ * - `SectionSlide`: primera línea cuando no es METCON; METCON endurance (`firstLine`, `restLines[0]`);
+ *   títulos de bloque (`Crossfit`, `Sollte funcional`, `Endurance`, `block.title`); párrafo solo con `firstLine` si no hay más líneas.
+ * - `DualSectionSlide`: textos estáticos "Crossfit" / "Funcional" sobre las listas.
+ */
 type LineTextContext = {
   isFirstItem?: boolean
 }
@@ -415,6 +431,24 @@ const FONT_SIZE_MAX = 1.5
 const FONT_SIZE_STEP = 0.125
 const FONT_SIZE_DEFAULT = 1
 const STORAGE_KEY_FONT_SIZE = 'dashboard-font-size'
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
+function getCardWidthPercent(opts: {
+  cardScale: number
+  lineHeight: number
+  fontSizeScale: number
+  dual?: boolean
+}): number {
+  const { lineHeight, fontSizeScale, dual = false } = opts
+  // El ajuste de ancho depende del contenido tipográfico.
+  const fitFactor = Math.max(fontSizeScale, lineHeight / LINE_HEIGHT_DEFAULT)
+  const base = dual ? 98 : 96
+  const computed = base / Math.max(0.6, fitFactor)
+  return clamp(computed, dual ? 66 : 58, 98)
+}
 
 function SectionSlide({
   label,
@@ -1665,6 +1699,7 @@ export default function DashboardPage() {
                             <div
                               className="flex max-h-full min-h-0 w-full max-w-[98%] flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
                               style={{
+                                width: `${clamp(100 / cardScale, 70, 140)}%`,
                                 transform: `scale(${cardScale})`,
                                 transformOrigin: 'center center',
                               }}
@@ -1805,15 +1840,35 @@ export default function DashboardPage() {
                           }
                           aria-hidden={useInfinite ? index !== currentIndex : undefined}
                         >
+                          {(() => {
+                            const singleCardWidth = getCardWidthPercent({
+                              cardScale,
+                              lineHeight: lineHeightList,
+                              fontSizeScale,
+                              dual: false,
+                            })
+                            const dualCardWidth = getCardWidthPercent({
+                              cardScale,
+                              lineHeight: lineHeightList,
+                              fontSizeScale,
+                              dual: true,
+                            })
+                            const dynamicGapPx = clamp(8 * cardScale, 6, 20)
+
+                            return (
                           <div
                             className="flex max-h-full min-h-0 w-full max-w-[98%] flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
                             style={{
+                              width: `${clamp(100 / cardScale, 70, 140)}%`,
                               transform: `scale(${cardScale})`,
                               transformOrigin: 'center center',
                             }}
                           >
                             {singleEnduranceCard ? (
-                              <div className="mx-auto flex w-full max-w-[96%] shrink-0 flex-col sm:max-w-5xl">
+                              <div
+                                className="mx-auto flex w-full shrink-0 flex-col sm:max-w-5xl"
+                                style={{ maxWidth: `${singleCardWidth}%` }}
+                              >
                                 <SectionSlide
                                   label={singleEnduranceCard.label}
                                   lines={singleEnduranceCard.lines}
@@ -1823,7 +1878,10 @@ export default function DashboardPage() {
                                 />
                               </div>
                             ) : twoCards ? (
-                              <div className="mx-auto flex w-full max-w-[96%] shrink-0 items-stretch gap-2 sm:gap-3 md:gap-4">
+                              <div
+                                className="mx-auto flex w-full shrink-0 items-stretch"
+                                style={{ maxWidth: `${dualCardWidth}%`, gap: `${dynamicGapPx}px` }}
+                              >
                                 {twoCards.map((card) => (
                                   <div
                                     key={`${card.label}-${card.lines.join('|')}`}
@@ -1840,7 +1898,10 @@ export default function DashboardPage() {
                                 ))}
                               </div>
                             ) : isFuerzaFortalecimientoSingle || isMetconRoundSingle ? (
-                              <div className="mx-auto flex w-full max-w-[96%] shrink-0 flex-col sm:max-w-4xl">
+                              <div
+                                className="mx-auto flex w-full shrink-0 flex-col sm:max-w-4xl"
+                                style={{ maxWidth: `${singleCardWidth}%` }}
+                              >
                                 <SectionSlide
                                   label={slideSection.label}
                                   lines={
@@ -1867,6 +1928,8 @@ export default function DashboardPage() {
                               />
                             ) : null}
                           </div>
+                            )
+                          })()}
                         </section>
                       )
                     })}
