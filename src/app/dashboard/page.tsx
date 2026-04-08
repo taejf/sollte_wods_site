@@ -2,15 +2,29 @@
 
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { applyTheme, getSavedTheme } from '@/components/ThemeInit'
 import { checkIsAdmin, logoutUser, onAuthChange } from '@/lib/auth'
+import {
+  clampSessionCurrentIndex,
+  subscribeControlSession,
+  updateControlSession,
+} from '@/lib/controlSession'
 import type { WodDoc, WodsApiResponse } from '@/lib/wod'
 
 const labelStripStyle: React.CSSProperties = {
   writingMode: 'vertical-rl',
   textOrientation: 'mixed',
   transform: 'rotate(180deg)',
+}
+
+/** Título único encima de dos columnas (METCON / STRENGTH duales). */
+function DualColumnSectionHeader({ label }: { label: string }) {
+  return (
+    <h2 className="m-0 w-full shrink-0 rounded-lg border border-[#c4c4c4] dark:border-gray-600 bg-black px-3 py-2 text-center text-base font-bold uppercase tracking-wider text-white sm:px-4 sm:py-2.5 sm:text-lg md:py-3 md:text-xl lg:text-2xl">
+      {label}
+    </h2>
+  )
 }
 
 const BLOCK_TITLE_ENDURANCE = 'Endurance'
@@ -432,6 +446,14 @@ const FONT_SIZE_STEP = 0.125
 const FONT_SIZE_DEFAULT = 1
 const STORAGE_KEY_FONT_SIZE = 'dashboard-font-size'
 
+const STORAGE_KEY_DISPLAY_MODE = 'dashboard-display-mode'
+
+type DashboardDisplayMode = 'tv' | 'control'
+
+function nearlyEqualSessionNumber(a: number, b: number): boolean {
+  return Math.abs(a - b) < 1e-6
+}
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n))
 }
@@ -456,12 +478,15 @@ function SectionSlide({
   lineHeight = LINE_HEIGHT_DEFAULT,
   fontSize = FONT_SIZE_DEFAULT,
   className = '',
+  hideVerticalLabel = false,
 }: {
   label: string
   lines: string[]
   lineHeight?: number
   fontSize?: number
   className?: string
+  /** Cuando hay dos columnas, el título va en {@link DualColumnSectionHeader} y no en la franja. */
+  hideVerticalLabel?: boolean
 }) {
   const items = lines
     .filter((line) => line.trim())
@@ -484,14 +509,16 @@ function SectionSlide({
     <div
       className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''} ${className}`}
     >
+      {!hideVerticalLabel && (
+        <div
+          className={`flex flex-shrink-0 self-stretch w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
+          style={labelStripStyle}
+        >
+          {label}
+        </div>
+      )}
       <div
-        className={`flex flex-shrink-0 self-stretch w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
-        style={labelStripStyle}
-      >
-        {label}
-      </div>
-      <div
-        className={`flex-1 min-h-0 border-l p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}
+        className={`flex-1 min-h-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${hideVerticalLabel ? '' : `border-l ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}`}
         style={{ fontSize: `${fontSize}rem` }}
       >
         {restLines.length > 0 ? (
@@ -771,22 +798,16 @@ function DualSectionSlide({
 
   if (crossfitItems.length === 0 && functionalItems.length === 0) return null
 
-  const labelBg = 'bg-black'
-
   return (
     <div
-      className={`flex w-full max-w-[96%] mx-auto items-stretch gap-2 sm:gap-3 md:gap-4 min-h-0 ${className}`}
+      className={`mx-auto flex w-full max-w-[96%] min-h-0 flex-col gap-2 sm:gap-3 md:gap-4 ${className}`}
     >
+      <DualColumnSectionHeader label={label} />
+      <div className="flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3 md:gap-4">
       {crossfitItems.length > 0 && (
         <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-lg border border-[#c4c4c4] bg-white dark:border-gray-600 dark:bg-[#3C3C3C]">
           <div
-            className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center self-stretch py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
-            style={labelStripStyle}
-          >
-            {label}
-          </div>
-          <div
-            className="flex min-h-0 flex-1 flex-col justify-start border-l border-black p-3 sm:p-4 md:p-5 lg:p-6 dark:border-gray-500"
+            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
             style={{ fontSize: `${fontSize}rem` }}
           >
             <p
@@ -815,13 +836,7 @@ function DualSectionSlide({
       {functionalItems.length > 0 && (
         <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-lg border border-[#c4c4c4] bg-white dark:border-gray-600 dark:bg-[#3C3C3C]">
           <div
-            className={`flex flex-shrink-0 w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center self-stretch py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
-            style={labelStripStyle}
-          >
-            {label}
-          </div>
-          <div
-            className="flex min-h-0 flex-1 flex-col justify-start border-l border-black p-3 sm:p-4 md:p-5 lg:p-6 dark:border-gray-500"
+            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
             style={{ fontSize: `${fontSize}rem` }}
           >
             <p
@@ -847,6 +862,7 @@ function DualSectionSlide({
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
@@ -855,6 +871,54 @@ type WodSection =
   | { type: 'header'; title: string; description: string }
   | { type: 'section'; label: string; lines: string[] }
   | { type: 'dual-section'; label: string; crossfitLines: string[]; functionalLines: string[] }
+
+type CarouselSlideSection = Extract<WodSection, { type: 'section' | 'dual-section' }>
+
+/**
+ * Líneas no vacías: solo para STRENGTH / METCON, a partir de aquí en TV se fijan interlineado, fuente y escala.
+ * Dual: máximo por columna. Warm up, accesorios, etc. no aplican umbral (siempre usan sliders).
+ */
+const DENSE_SECTION_LINE_THRESHOLD = 8
+const DENSE_LINE_HEIGHT = 1.05
+const DENSE_FONT_SIZE = 0.875
+const DENSE_CARD_SCALE = 0.6
+
+function isTvDenseLayoutSection(slide: CarouselSlideSection): boolean {
+  const u = slide.label.toUpperCase()
+  return slide.label === 'STRENGTH' || u.startsWith('METCON')
+}
+
+function countSectionLinesForDensity(slide: CarouselSlideSection): number {
+  if (slide.type === 'dual-section') {
+    const cf = slide.crossfitLines.filter((l) => l.trim()).length
+    const fn = slide.functionalLines.filter((l) => l.trim()).length
+    return Math.max(cf, fn)
+  }
+  return slide.lines.filter((l) => l.trim()).length
+}
+
+function resolveTvSlideDensityLayout(
+  slide: CarouselSlideSection,
+  userLineHeight: number,
+  userFontSize: number,
+  userCardScale: number
+): { lineHeight: number; fontSize: number; cardScale: number } {
+  if (
+    !isTvDenseLayoutSection(slide) ||
+    countSectionLinesForDensity(slide) < DENSE_SECTION_LINE_THRESHOLD
+  ) {
+    return {
+      lineHeight: userLineHeight,
+      fontSize: userFontSize,
+      cardScale: userCardScale,
+    }
+  }
+  return {
+    lineHeight: DENSE_LINE_HEIGHT,
+    fontSize: DENSE_FONT_SIZE,
+    cardScale: DENSE_CARD_SCALE,
+  }
+}
 
 function getSections(wod: WodDoc | undefined): WodSection[] {
   if (!wod) return []
@@ -998,6 +1062,39 @@ export default function DashboardPage() {
   const [cardScale, setCardScale] = useState(CARD_SCALE_DEFAULT)
   const [fontSizeScale, setFontSizeScale] = useState(FONT_SIZE_DEFAULT)
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [displayMode, setDisplayMode] = useState<DashboardDisplayMode>('tv')
+  const [sessionUid, setSessionUid] = useState<string | null>(null)
+  const applyingRemoteRef = useRef(false)
+  const controlNamesStripRef = useRef<HTMLDivElement>(null)
+  const controlStripSkipSyncRef = useRef(false)
+  const controlNamesScrollSettleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestSessionStateRef = useRef({
+    currentIndex: 0,
+    isPaused: true,
+    lineHeightList: LINE_HEIGHT_DEFAULT,
+    cardScale: CARD_SCALE_DEFAULT,
+    fontSizeScale: FONT_SIZE_DEFAULT,
+    isDark: true,
+  })
+  const lenRef = useRef(0)
+  const useInfiniteRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_DISPLAY_MODE)
+      if (stored === 'tv' || stored === 'control') setDisplayMode(stored)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_DISPLAY_MODE, displayMode)
+    } catch {
+      // ignore
+    }
+  }, [displayMode])
 
   useEffect(() => {
     setIsDark(getSavedTheme())
@@ -1084,6 +1181,18 @@ export default function DashboardPage() {
   currentIndexRef.current = currentIndex
   const len = carouselSections.length
   const useInfinite = len > 1
+  lenRef.current = len
+  useInfiniteRef.current = useInfinite
+
+  latestSessionStateRef.current = {
+    currentIndex,
+    isPaused,
+    lineHeightList,
+    cardScale,
+    fontSizeScale,
+    isDark,
+  }
+
   const slidesToRender = useMemo(() => {
     const baseSlides = useInfinite ? [...carouselSections, carouselSections[0]] : carouselSections
     const keyCount = new Map<string, number>()
@@ -1097,25 +1206,44 @@ export default function DashboardPage() {
       return { ...slideSection, renderKey: `${seed}#${count}` }
     })
   }, [carouselSections, useInfinite])
+
+  const controlNameSlideEntries = useMemo(() => {
+    const keyCount = new Map<string, number>()
+    return carouselSections.map((slideSection) => {
+      const seed =
+        slideSection.type === 'section'
+          ? `section|${slideSection.label}|${slideSection.lines.join('|')}`
+          : `dual|${slideSection.label}|${slideSection.crossfitLines.join('|')}|${slideSection.functionalLines.join('|')}`
+      const count = (keyCount.get(seed) ?? 0) + 1
+      keyCount.set(seed, count)
+      return { slideSection, renderKey: `${seed}#${count}` }
+    })
+  }, [carouselSections])
+
   const [skipTransition, setSkipTransition] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthChange(async (user) => {
       if (!user) {
+        setSessionUid(null)
         router.replace('/')
         return
       }
       try {
         const isAdmin = await checkIsAdmin(user.uid)
         if (!isAdmin) {
+          setSessionUid(null)
           await logoutUser()
           router.replace('/?error=no_admin')
           return
         }
       } catch {
+        setSessionUid(null)
         router.replace('/')
         return
       }
+
+      setSessionUid(user.uid)
 
       try {
         const idToken = await user.getIdToken()
@@ -1178,7 +1306,7 @@ export default function DashboardPage() {
   }, [skipTransition, currentIndex, len, useInfinite])
 
   useEffect(() => {
-    if (isPaused || !useInfinite) return
+    if (displayMode !== 'tv' || isPaused || !useInfinite) return
     const interval = setInterval(() => {
       const n = sectionsLengthRef.current
       if (n <= 1) return
@@ -1189,7 +1317,7 @@ export default function DashboardPage() {
       })
     }, 5500)
     return () => clearInterval(interval)
-  }, [isPaused, useInfinite])
+  }, [displayMode, isPaused, useInfinite])
 
   useEffect(() => {
     if (carouselSections.length > 0) {
@@ -1197,6 +1325,81 @@ export default function DashboardPage() {
       setCurrentIndex((i) => Math.min(i, maxIdx))
     }
   }, [carouselSections.length, useInfinite])
+
+  useEffect(() => {
+    if (!sessionUid) return
+    return subscribeControlSession(sessionUid, (data) => {
+      if (data == null) return
+      const prev = latestSessionStateRef.current
+      let delta = false
+      const slideCount = lenRef.current
+      const infinite = useInfiniteRef.current
+
+      if (data.currentIndex !== undefined) {
+        const c = clampSessionCurrentIndex(data.currentIndex, slideCount, infinite)
+        if (c !== prev.currentIndex) {
+          delta = true
+          setCurrentIndex(c)
+        }
+      }
+      if (data.isPaused !== undefined && data.isPaused !== prev.isPaused) {
+        delta = true
+        setIsPaused(data.isPaused)
+      }
+      if (
+        data.lineHeight !== undefined &&
+        !nearlyEqualSessionNumber(data.lineHeight, prev.lineHeightList)
+      ) {
+        delta = true
+        setLineHeightList(data.lineHeight)
+      }
+      if (
+        data.cardScale !== undefined &&
+        !nearlyEqualSessionNumber(data.cardScale, prev.cardScale)
+      ) {
+        delta = true
+        setCardScale(data.cardScale)
+      }
+      if (
+        data.fontSize !== undefined &&
+        !nearlyEqualSessionNumber(data.fontSize, prev.fontSizeScale)
+      ) {
+        delta = true
+        setFontSizeScale(data.fontSize)
+      }
+      if (data.isDark !== undefined && data.isDark !== prev.isDark) {
+        delta = true
+        setIsDark(data.isDark)
+      }
+      if (delta) applyingRemoteRef.current = true
+    })
+  }, [sessionUid])
+
+  useEffect(() => {
+    if (!sessionUid) return
+    if (applyingRemoteRef.current) {
+      applyingRemoteRef.current = false
+      return
+    }
+    void updateControlSession(sessionUid, {
+      currentIndex,
+      isPaused,
+      lineHeight: lineHeightList,
+      cardScale,
+      fontSize: fontSizeScale,
+      isDark,
+    }).catch(() => {
+      // permisos Firestore o red; no bloquear UI
+    })
+  }, [
+    sessionUid,
+    currentIndex,
+    isPaused,
+    lineHeightList,
+    cardScale,
+    fontSizeScale,
+    isDark,
+  ])
 
   useEffect(() => {
     const HIDE_DELAY_MS = 2500
@@ -1307,6 +1510,68 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [goPrev, goNext])
 
+  const controlsVisible = displayMode === 'control' || showControls
+
+  const controlStripLogicalIndex = useMemo(() => {
+    if (len === 0) return 0
+    if (useInfinite && currentIndex === len) return 0
+    return Math.min(currentIndex, len - 1)
+  }, [currentIndex, len, useInfinite])
+
+  const settleControlStripIndex = useCallback(() => {
+    const el = controlNamesStripRef.current
+    if (!el || len < 2) return
+    const w = el.clientWidth
+    if (w <= 0) return
+    const i = Math.round(el.scrollLeft / w)
+    const clamped = Math.max(0, Math.min(len - 1, i))
+    setCurrentIndex((prev) => {
+      const prevLogical = useInfinite && prev === len ? 0 : Math.min(prev, len - 1)
+      if (clamped === prevLogical) return prev
+      return clamped
+    })
+  }, [len, useInfinite])
+
+  const handleControlNamesScroll = useCallback(() => {
+    if (controlStripSkipSyncRef.current) return
+    if (controlNamesScrollSettleRef.current) clearTimeout(controlNamesScrollSettleRef.current)
+    controlNamesScrollSettleRef.current = setTimeout(() => {
+      controlNamesScrollSettleRef.current = null
+      settleControlStripIndex()
+    }, 100)
+  }, [settleControlStripIndex])
+
+  useLayoutEffect(() => {
+    if (displayMode !== 'control') return
+    const el = controlNamesStripRef.current
+    if (!el || len < 2) return
+
+    const syncStripScroll = () => {
+      const w = el.clientWidth
+      if (w <= 0) return
+      const target = controlStripLogicalIndex * w
+      if (Math.abs(el.scrollLeft - target) <= 2) return
+      controlStripSkipSyncRef.current = true
+      el.scrollTo({ left: target, behavior: 'instant' })
+      requestAnimationFrame(() => {
+        controlStripSkipSyncRef.current = false
+      })
+    }
+
+    syncStripScroll()
+    const ro = new ResizeObserver(() => {
+      syncStripScroll()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [displayMode, controlStripLogicalIndex, len])
+
+  useEffect(() => {
+    return () => {
+      if (controlNamesScrollSettleRef.current) clearTimeout(controlNamesScrollSettleRef.current)
+    }
+  }, [])
+
   return (
     <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
       <header className="bg-white dark:bg-[#3C3C3C] py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
@@ -1366,9 +1631,10 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {displayMode === 'tv' && (
       <div
-        className={`fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-50 flex flex-row gap-3 transition-opacity duration-300 ${
-          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-50 flex flex-row flex-wrap gap-3 transition-opacity duration-300 pointer-events-none ${
+          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
         }`}
       >
         <fieldset
@@ -1483,55 +1749,133 @@ export default function DashboardPage() {
           </div>
         </fieldset>
       </div>
+      )}
 
-      <button
-        type="button"
-        onClick={() => setIsDark((d) => !d)}
-        className={`fixed bottom-4 sm:bottom-6 right-16 sm:right-24 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
-          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
-        }`}
-        aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      <div
+        className={`fixed bottom-4 sm:bottom-6 z-50 flex flex-row-reverse items-center gap-2 sm:gap-3 transition-opacity duration-300 pointer-events-none ${
+          displayMode === 'control' && useInfinite
+            ? 'right-28 sm:right-40'
+            : 'right-16 sm:right-24'
+        } ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
       >
-        {isDark ? (
-          <svg
-            className="w-5 h-5 sm:w-6 sm:h-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {displayMode === 'control' && useInfinite && (
+          <button
+            type="button"
+            onClick={() => setIsPaused((p) => !p)}
+            className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+            aria-label={isPaused ? 'Reanudar carrusel en TV' : 'Pausar carrusel en TV'}
+            aria-pressed={isPaused}
           >
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        ) : (
-          <svg
-            className="w-5 h-5 sm:w-6 sm:h-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
+            {isPaused ? (
+              <svg
+                className="w-5 h-5 sm:w-6 sm:h-6"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            ) : (
+              <svg
+                className="w-5 h-5 sm:w-6 sm:h-6"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+              </svg>
+            )}
+          </button>
         )}
-      </button>
+        <button
+          type="button"
+          onClick={() => setIsDark((d) => !d)}
+          className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+          aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        >
+          {isDark ? (
+            <svg
+              className="w-5 h-5 sm:w-6 sm:h-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg
+              className="w-5 h-5 sm:w-6 sm:h-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDisplayMode((m) => (m === 'tv' ? 'control' : 'tv'))}
+          className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+          aria-label={
+            displayMode === 'tv' ? 'Cambiar a modo control (móvil)' : 'Cambiar a modo TV'
+          }
+          title={displayMode === 'tv' ? 'Modo control' : 'Modo TV'}
+        >
+          {displayMode === 'tv' ? (
+            <svg
+              className="w-5 h-5 sm:w-6 sm:h-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <rect x="6" y="2" width="12" height="20" rx="2" ry="2" />
+              <path d="M12 18h.01" />
+            </svg>
+          ) : (
+            <svg
+              className="w-5 h-5 sm:w-6 sm:h-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <rect x="2" y="4" width="20" height="12" rx="2" ry="2" />
+              <path d="M8 20h8" />
+              <path d="M12 16v4" />
+            </svg>
+          )}
+        </button>
+      </div>
 
       <button
         type="button"
         onClick={handleLogout}
         className={`fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
-          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
+          controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'
         }`}
         aria-label="Cerrar sesión"
       >
@@ -1550,7 +1894,7 @@ export default function DashboardPage() {
         </svg>
       </button>
 
-      {useInfinite && (
+      {displayMode === 'tv' && useInfinite && (
         <button
           type="button"
           onClick={() => setIsPaused((p) => !p)}
@@ -1600,6 +1944,225 @@ export default function DashboardPage() {
           )}
 
           {!loading && !error && (
+            <>
+              {displayMode === 'control' && (
+                <div className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto p-4 pb-28 sm:p-6 sm:pb-32">
+                  <div className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-2xl border border-[#d0d0d0] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] p-4 sm:p-5 shadow-sm">
+                    <div>
+                      <h2 className="text-lg font-bold text-[#333] dark:text-gray-100">Modo control</h2>
+                      <p className="mt-1 text-xs text-[#666] dark:text-gray-400">
+                        Mismo usuario admin que la TV · Flechas o deslizar para cambiar de sección
+                      </p>
+                      <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-[#f0f4f8] dark:bg-[#2a2a2a]">
+                        {len === 0 ? (
+                          <p className="px-4 py-8 text-center text-sm text-[#666] dark:text-gray-400">
+                            Sin secciones en este WOD
+                          </p>
+                        ) : len === 1 ? (
+                          <div className="flex min-h-[5.5rem] items-center justify-center px-4 py-6">
+                            <p className="text-center text-base font-bold uppercase tracking-wide text-[#333] dark:text-gray-100 sm:text-lg">
+                              {controlNameSlideEntries[0]?.slideSection.label}
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex min-h-[5.5rem] items-stretch gap-1 px-1 py-1 sm:gap-1.5 sm:px-1.5">
+                              <button
+                                type="button"
+                                onClick={goPrev}
+                                disabled={!useInfinite}
+                                className="flex w-9 shrink-0 items-center justify-center self-center rounded-lg bg-[#4A90E2] text-white shadow-sm hover:bg-[#3A7BC8] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:w-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2a2a2a]"
+                                aria-label="Sección anterior"
+                              >
+                                <svg
+                                  className="h-6 w-6"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden
+                                >
+                                  <polyline points="15 18 9 12 15 6" />
+                                </svg>
+                              </button>
+                              <section
+                                ref={controlNamesStripRef}
+                                onScroll={handleControlNamesScroll}
+                                className="min-w-0 flex-1 touch-pan-x snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                aria-roledescription="Carrusel"
+                                aria-label="Secciones del WOD. Flechas o deslizar para cambiar."
+                              >
+                                <div className="flex min-h-[5rem]">
+                                  {controlNameSlideEntries.map(({ slideSection: s, renderKey }, idx) => (
+                                    <div
+                                      key={renderKey}
+                                      className="flex w-full min-w-full shrink-0 snap-center items-center justify-center px-2 py-4 sm:px-4 sm:py-6"
+                                    >
+                                      <p
+                                        className="text-center text-base font-bold uppercase tracking-wide text-[#333] dark:text-gray-100 sm:text-lg"
+                                        aria-current={idx === controlStripLogicalIndex ? 'true' : undefined}
+                                      >
+                                        {s.label}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </section>
+                              <button
+                                type="button"
+                                onClick={goNext}
+                                disabled={!useInfinite}
+                                className="flex w-9 shrink-0 items-center justify-center self-center rounded-lg bg-[#4A90E2] text-white shadow-sm hover:bg-[#3A7BC8] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:w-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2a2a2a]"
+                                aria-label="Sección siguiente"
+                              >
+                                <svg
+                                  className="h-6 w-6"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden
+                                >
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                              </button>
+                            </div>
+                            <p className="pb-2 text-center text-xs tabular-nums text-[#666] dark:text-gray-400">
+                              {controlStripLogicalIndex + 1} / {len}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <details className="group rounded-xl border border-gray-200 dark:border-gray-600 bg-white/50 dark:bg-[#353535]/80 open:border-[#4A90E2]/40 dark:open:border-[#60a5fa]/35">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-[#333] dark:text-gray-200 [&::-webkit-details-marker]:hidden">
+                        <span>Parámetros de pantalla</span>
+                        <svg
+                          className="h-5 w-5 shrink-0 text-[#4A90E2] transition-transform duration-200 group-open:rotate-180 dark:text-[#60a5fa]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </summary>
+                      <div className="flex flex-col gap-3 border-t border-gray-200 px-2 pb-3 pt-2 dark:border-gray-600">
+                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
+                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                            Tamaño tarjetas
+                          </legend>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCardScale((v) =>
+                                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Reducir tamaño de tarjetas"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                              {cardScale.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCardScale((v) =>
+                                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Aumentar tamaño de tarjetas"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </fieldset>
+                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
+                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                            Interlineado
+                          </legend>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLineHeightList((v) =>
+                                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Reducir interlineado"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                              {lineHeightList.toFixed(1)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLineHeightList((v) =>
+                                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Aumentar interlineado"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </fieldset>
+                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
+                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                            Tamaño fuente
+                          </legend>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFontSizeScale((v) =>
+                                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Reducir tamaño de fuente"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                              {fontSizeScale.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFontSizeScale((v) =>
+                                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Aumentar tamaño de fuente"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </fieldset>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              )}
+              {displayMode === 'tv' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center w-full overflow-hidden p-1 sm:p-[0.3rem]">
               {noWodForSelectedDate && (
                 <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 sm:p-6 md:p-8 rounded-lg max-w-lg text-center text-sm sm:text-base md:text-xl lg:text-2xl">
@@ -1687,6 +2250,12 @@ export default function DashboardPage() {
                   >
                     {slidesToRender.map((slideSection, index) => {
                       if (slideSection.type === 'dual-section') {
+                        const tvLayout = resolveTvSlideDensityLayout(
+                          slideSection,
+                          lineHeightList,
+                          fontSizeScale,
+                          cardScale
+                        )
                         return (
                           <section
                             key={slideSection.renderKey}
@@ -1699,8 +2268,8 @@ export default function DashboardPage() {
                             <div
                               className="flex max-h-full min-h-0 w-full max-w-[98%] flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
                               style={{
-                                width: `${clamp(100 / cardScale, 70, 140)}%`,
-                                transform: `scale(${cardScale})`,
+                                width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
+                                transform: `scale(${tvLayout.cardScale})`,
                                 transformOrigin: 'center center',
                               }}
                             >
@@ -1708,8 +2277,8 @@ export default function DashboardPage() {
                                 label={slideSection.label}
                                 crossfitLines={slideSection.crossfitLines}
                                 functionalLines={slideSection.functionalLines}
-                                lineHeight={lineHeightList}
-                                fontSize={fontSizeScale}
+                                lineHeight={tvLayout.lineHeight}
+                                fontSize={tvLayout.fontSize}
                                 className="w-full shrink-0"
                               />
                             </div>
@@ -1841,26 +2410,32 @@ export default function DashboardPage() {
                           aria-hidden={useInfinite ? index !== currentIndex : undefined}
                         >
                           {(() => {
-                            const singleCardWidth = getCardWidthPercent({
-                              cardScale,
-                              lineHeight: lineHeightList,
+                            const tvLayout = resolveTvSlideDensityLayout(
+                              slideSection,
+                              lineHeightList,
                               fontSizeScale,
+                              cardScale
+                            )
+                            const singleCardWidth = getCardWidthPercent({
+                              cardScale: tvLayout.cardScale,
+                              lineHeight: tvLayout.lineHeight,
+                              fontSizeScale: tvLayout.fontSize,
                               dual: false,
                             })
                             const dualCardWidth = getCardWidthPercent({
-                              cardScale,
-                              lineHeight: lineHeightList,
-                              fontSizeScale,
+                              cardScale: tvLayout.cardScale,
+                              lineHeight: tvLayout.lineHeight,
+                              fontSizeScale: tvLayout.fontSize,
                               dual: true,
                             })
-                            const dynamicGapPx = clamp(8 * cardScale, 6, 20)
+                            const dynamicGapPx = clamp(8 * tvLayout.cardScale, 6, 20)
 
                             return (
                           <div
                             className="flex max-h-full min-h-0 w-full max-w-[98%] flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
                             style={{
-                              width: `${clamp(100 / cardScale, 70, 140)}%`,
-                              transform: `scale(${cardScale})`,
+                              width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
+                              transform: `scale(${tvLayout.cardScale})`,
                               transformOrigin: 'center center',
                             }}
                           >
@@ -1872,30 +2447,37 @@ export default function DashboardPage() {
                                 <SectionSlide
                                   label={singleEnduranceCard.label}
                                   lines={singleEnduranceCard.lines}
-                                  lineHeight={lineHeightList}
-                                  fontSize={fontSizeScale}
+                                  lineHeight={tvLayout.lineHeight}
+                                  fontSize={tvLayout.fontSize}
                                   className="w-full shrink-0"
                                 />
                               </div>
                             ) : twoCards ? (
                               <div
-                                className="mx-auto flex w-full shrink-0 items-stretch"
-                                style={{ maxWidth: `${dualCardWidth}%`, gap: `${dynamicGapPx}px` }}
+                                className="mx-auto flex w-full min-h-0 max-w-full shrink-0 flex-col gap-2 sm:gap-2.5"
+                                style={{ maxWidth: `${dualCardWidth}%` }}
                               >
-                                {twoCards.map((card) => (
-                                  <div
-                                    key={`${card.label}-${card.lines.join('|')}`}
-                                    className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch"
-                                  >
-                                    <SectionSlide
-                                      label={card.label}
-                                      lines={card.lines}
-                                      lineHeight={lineHeightList}
-                                      fontSize={fontSizeScale}
-                                      className="h-full min-h-0 w-full min-w-0 flex-1 self-stretch"
-                                    />
-                                  </div>
-                                ))}
+                                <DualColumnSectionHeader label={slideSection.label} />
+                                <div
+                                  className="flex min-h-0 w-full flex-1 items-stretch"
+                                  style={{ gap: `${dynamicGapPx}px` }}
+                                >
+                                  {twoCards.map((card) => (
+                                    <div
+                                      key={`${card.label}-${card.lines.join('|')}`}
+                                      className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch"
+                                    >
+                                      <SectionSlide
+                                        label={card.label}
+                                        lines={card.lines}
+                                        lineHeight={tvLayout.lineHeight}
+                                        fontSize={tvLayout.fontSize}
+                                        hideVerticalLabel
+                                        className="mx-0 h-full min-h-0 w-full min-w-0 max-w-none flex-1 self-stretch"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ) : isFuerzaFortalecimientoSingle || isMetconRoundSingle ? (
                               <div
@@ -1913,8 +2495,8 @@ export default function DashboardPage() {
                                         ? slideSection.lines
                                         : []
                                   }
-                                  lineHeight={lineHeightList}
-                                  fontSize={fontSizeScale}
+                                  lineHeight={tvLayout.lineHeight}
+                                  fontSize={tvLayout.fontSize}
                                   className="w-full shrink-0"
                                 />
                               </div>
@@ -1922,8 +2504,8 @@ export default function DashboardPage() {
                               <SectionSlide
                                 label={slideSection.label}
                                 lines={slideSection.lines}
-                                lineHeight={lineHeightList}
-                                fontSize={fontSizeScale}
+                                lineHeight={tvLayout.lineHeight}
+                                fontSize={tvLayout.fontSize}
                                 className="w-full shrink-0"
                               />
                             ) : null}
@@ -1937,6 +2519,8 @@ export default function DashboardPage() {
                 </section>
               )}
             </div>
+              )}
+            </>
           )}
         </main>
       </div>
