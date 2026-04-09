@@ -28,7 +28,6 @@ export type ControlSessionState = {
   denseLineHeight: number
   denseCardScale: number
   denseFontSize: number
-  isDark: boolean
 }
 
 function controlSessionDocRef(uid: string) {
@@ -88,10 +87,6 @@ function parseSessionData(raw: Record<string, unknown>): Partial<ControlSessionS
   if (typeof raw.denseFontSize === 'number' && Number.isFinite(raw.denseFontSize)) {
     out.denseFontSize = clampSessionFontSize(raw.denseFontSize)
   }
-  if (typeof raw.isDark === 'boolean') {
-    out.isDark = raw.isDark
-  }
-
   return out
 }
 
@@ -153,9 +148,5 @@ export async function updateControlSession(
   if (patch.denseFontSize !== undefined) {
     sanitized.denseFontSize = clampSessionFontSize(patch.denseFontSize)
   }
-  if (patch.isDark !== undefined) {
-    sanitized.isDark = patch.isDark
-  }
-
   await setDoc(controlSessionDocRef(uid), sanitized, { merge: true })
 }

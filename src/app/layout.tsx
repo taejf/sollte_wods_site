@@ -4,8 +4,8 @@ import Script from 'next/script'
 import ThemeInit from '@/components/ThemeInit'
 import './globals.css'
 
-/** Alineado con `ThemeInit` / `getSavedTheme`: por defecto oscuro; solo `theme=light` en localStorage fuerza claro. */
-const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');document.documentElement.classList.toggle('dark',t!=='light');}catch(e){document.documentElement.classList.add('dark');}})();`
+/** Modo oscuro forzado en todo el sitio. */
+const THEME_BOOT_SCRIPT = `(function(){try{document.documentElement.classList.add('dark');localStorage.setItem('theme','dark');}catch(e){document.documentElement.classList.add('dark');}})();`
 
 const heebo = Heebo({
   subsets: ['latin'],
