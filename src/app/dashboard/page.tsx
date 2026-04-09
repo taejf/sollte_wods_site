@@ -2507,7 +2507,7 @@ export default function DashboardPage() {
               )}
               {!noWodForSelectedDate && (
                 <section
-                  className="relative overflow-hidden w-full max-w-9xl mx-auto flex flex-col items-center justify-center"
+                  className="relative h-full min-h-0 overflow-hidden w-full max-w-9xl mx-auto flex flex-col items-center justify-center"
                   aria-roledescription="carrusel"
                   aria-label="Carrusel de secciones del WOD del día"
                 >
@@ -2558,7 +2558,7 @@ export default function DashboardPage() {
                     </>
                   )}
                   <div
-                    className="flex w-full"
+                    className="flex h-full min-h-0 w-full items-stretch"
                     style={{
                       transform: `translateX(-${currentIndex * 100}%)`,
                       transition:
