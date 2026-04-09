@@ -25,6 +25,9 @@ export type ControlSessionState = {
   lineHeight: number
   cardScale: number
   fontSize: number
+  denseLineHeight: number
+  denseCardScale: number
+  denseFontSize: number
   isDark: boolean
 }
 
@@ -75,6 +78,15 @@ function parseSessionData(raw: Record<string, unknown>): Partial<ControlSessionS
   }
   if (typeof raw.fontSize === 'number' && Number.isFinite(raw.fontSize)) {
     out.fontSize = clampSessionFontSize(raw.fontSize)
+  }
+  if (typeof raw.denseLineHeight === 'number' && Number.isFinite(raw.denseLineHeight)) {
+    out.denseLineHeight = clampSessionLineHeight(raw.denseLineHeight)
+  }
+  if (typeof raw.denseCardScale === 'number' && Number.isFinite(raw.denseCardScale)) {
+    out.denseCardScale = clampSessionCardScale(raw.denseCardScale)
+  }
+  if (typeof raw.denseFontSize === 'number' && Number.isFinite(raw.denseFontSize)) {
+    out.denseFontSize = clampSessionFontSize(raw.denseFontSize)
   }
   if (typeof raw.isDark === 'boolean') {
     out.isDark = raw.isDark
@@ -131,6 +143,15 @@ export async function updateControlSession(
   }
   if (patch.fontSize !== undefined) {
     sanitized.fontSize = clampSessionFontSize(patch.fontSize)
+  }
+  if (patch.denseLineHeight !== undefined) {
+    sanitized.denseLineHeight = clampSessionLineHeight(patch.denseLineHeight)
+  }
+  if (patch.denseCardScale !== undefined) {
+    sanitized.denseCardScale = clampSessionCardScale(patch.denseCardScale)
+  }
+  if (patch.denseFontSize !== undefined) {
+    sanitized.denseFontSize = clampSessionFontSize(patch.denseFontSize)
   }
   if (patch.isDark !== undefined) {
     sanitized.isDark = patch.isDark

@@ -279,19 +279,24 @@ function ExerciseColumnItems({
   extraLiClass?: (item: string) => string
   compactFirstItemTopSpacing?: boolean
 }) {
+  const keyCount = new Map<string, number>()
   return (
     <ul className="list-none p-0 m-0 flex flex-col">
-      {items.map((item, i) => (
-        <li
-          key={`${item}-${items.length}`}
-          className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
-          style={{ lineHeight }}
-        >
-          {renderStyledLineText(item, {
-            highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-          })}
-        </li>
-      ))}
+      {items.map((item, i) => {
+        const occ = (keyCount.get(item) ?? 0) + 1
+        keyCount.set(item, occ)
+        return (
+          <li
+            key={`${item}-${occ}`}
+            className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+            style={{ lineHeight }}
+          >
+            {renderStyledLineText(item, {
+              highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+            })}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -312,32 +317,15 @@ function ExerciseMultiColumnGrid({
   const gapRow = 'mt-2 sm:mt-3 md:mt-4'
 
   if (layout === 'single') {
+    const keyCount = new Map<string, number>()
     return (
       <ul className={`list-none m-0 grid grid-cols-1 gap-y-0 p-0 ${gapRow}`}>
-        {items.map((item, i) => (
-          <li
-            key={`${item}-${items.length}`}
-            className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
-            style={{ lineHeight }}
-          >
-            {renderStyledLineText(item, {
-              highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-            })}
-          </li>
-        ))}
-      </ul>
-    )
-  }
-
-  const col2 = splitIntoColumns(items, 2)
-
-  if (layout === 'twoCol') {
-    return (
-      <>
-        <ul className={`list-none m-0 flex flex-col p-0 md:hidden ${gapRow}`}>
-          {items.map((item, i) => (
+        {items.map((item, i) => {
+          const occ = (keyCount.get(item) ?? 0) + 1
+          keyCount.set(item, occ)
+          return (
             <li
-              key={`${item}-${items.length}`}
+              key={`${item}-${occ}`}
               className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
@@ -345,7 +333,34 @@ function ExerciseMultiColumnGrid({
                 highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
               })}
             </li>
-          ))}
+          )
+        })}
+      </ul>
+    )
+  }
+
+  const col2 = splitIntoColumns(items, 2)
+
+  if (layout === 'twoCol') {
+    const mobileKeyCount = new Map<string, number>()
+    return (
+      <>
+        <ul className={`list-none m-0 flex flex-col p-0 md:hidden ${gapRow}`}>
+          {items.map((item, i) => {
+            const occ = (mobileKeyCount.get(item) ?? 0) + 1
+            mobileKeyCount.set(item, occ)
+            return (
+              <li
+                key={`${item}-${occ}`}
+                className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+                style={{ lineHeight }}
+              >
+                {renderStyledLineText(item, {
+                  highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                })}
+              </li>
+            )
+          })}
         </ul>
         <div
           className={`hidden md:flex md:flex-row md:items-stretch gap-x-3 sm:gap-x-4 md:gap-x-6 ${gapRow}`}
@@ -372,20 +387,25 @@ function ExerciseMultiColumnGrid({
   }
 
   const col3 = splitIntoColumns(items, 3)
+  const mobileKeyCount = new Map<string, number>()
   return (
     <>
       <ul className={`list-none m-0 flex flex-col p-0 md:hidden ${gapRow}`}>
-        {items.map((item, i) => (
-          <li
-            key={`${item}-${items.length}`}
-            className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
-            style={{ lineHeight }}
-          >
-            {renderStyledLineText(item, {
-              highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-            })}
-          </li>
-        ))}
+        {items.map((item, i) => {
+          const occ = (mobileKeyCount.get(item) ?? 0) + 1
+          mobileKeyCount.set(item, occ)
+          return (
+            <li
+              key={`${item}-${occ}`}
+              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+              style={{ lineHeight }}
+            >
+              {renderStyledLineText(item, {
+                highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+              })}
+            </li>
+          )
+        })}
       </ul>
       <div
         className={`hidden md:flex xl:hidden md:flex-row md:items-stretch gap-x-3 sm:gap-x-4 md:gap-x-6 ${gapRow}`}
@@ -445,6 +465,10 @@ const FONT_SIZE_MAX = 1.5
 const FONT_SIZE_STEP = 0.125
 const FONT_SIZE_DEFAULT = 1
 const STORAGE_KEY_FONT_SIZE = 'dashboard-font-size'
+
+const STORAGE_KEY_DENSE_LINE_HEIGHT = 'dashboard-dense-line-height'
+const STORAGE_KEY_DENSE_CARD_SCALE = 'dashboard-dense-card-scale'
+const STORAGE_KEY_DENSE_FONT_SIZE = 'dashboard-dense-font-size'
 
 const STORAGE_KEY_DISPLAY_MODE = 'dashboard-display-mode'
 
@@ -663,24 +687,31 @@ function SectionSlide({
                         gridTemplateColumns: `repeat(${chunks.length}, minmax(0, 1fr))`,
                       }}
                     >
-                      {chunks.map((chunk) => (
+                      {chunks.map((chunk) => {
+                        const keyCount = new Map<string, number>()
+                        return (
                         <ul
                           key={`${chunk.join('|')}-${chunk.length}`}
                           className="list-none p-0 m-0 flex flex-col"
                         >
-                          {chunk.map((item, i) => (
-                            <li
-                              key={`${item}-${chunk.length}`}
-                              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
-                              style={{ lineHeight: lineHeight }}
-                            >
-                              {renderStyledLineText(item, {
-                                highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                              })}
-                            </li>
-                          ))}
+                          {chunk.map((item, i) => {
+                            const occ = (keyCount.get(item) ?? 0) + 1
+                            keyCount.set(item, occ)
+                            return (
+                              <li
+                                key={`${item}-${occ}`}
+                                className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
+                                style={{ lineHeight: lineHeight }}
+                              >
+                                {renderStyledLineText(item, {
+                                  highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                                })}
+                              </li>
+                            )
+                          })}
                         </ul>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     <ExerciseMultiColumnGrid
@@ -797,6 +828,8 @@ function DualSectionSlide({
     functionalItems.length > 0 && isSubtitleLine(functionalItems[0], { isFirstItem: true })
 
   if (crossfitItems.length === 0 && functionalItems.length === 0) return null
+  const crossfitKeyCount = new Map<string, number>()
+  const functionalKeyCount = new Map<string, number>()
 
   return (
     <div
@@ -819,15 +852,21 @@ function DualSectionSlide({
             </p>
             <ul className="list-none p-0 m-0 flex flex-col">
               {crossfitItems.map((item, i) => (
-                <li
-                  key={`${item}-${crossfitItems.length}`}
-                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
-                  style={{ lineHeight: lineHeight }}
-                >
-                  {renderStyledLineText(item, {
-                    highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                  })}
-                </li>
+                (() => {
+                  const occ = (crossfitKeyCount.get(item) ?? 0) + 1
+                  crossfitKeyCount.set(item, occ)
+                  return (
+                    <li
+                      key={`${item}-${occ}`}
+                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
+                      style={{ lineHeight: lineHeight }}
+                    >
+                      {renderStyledLineText(item, {
+                        highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                      })}
+                    </li>
+                  )
+                })()
               ))}
             </ul>
           </div>
@@ -848,15 +887,21 @@ function DualSectionSlide({
             </p>
             <ul className="list-none p-0 m-0 flex flex-col">
               {functionalItems.map((item, i) => (
-                <li
-                  key={`${item}-${functionalItems.length}`}
-                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
-                  style={{ lineHeight: lineHeight }}
-                >
-                  {renderStyledLineText(item, {
-                    highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                  })}
-                </li>
+                (() => {
+                  const occ = (functionalKeyCount.get(item) ?? 0) + 1
+                  functionalKeyCount.set(item, occ)
+                  return (
+                    <li
+                      key={`${item}-${occ}`}
+                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
+                      style={{ lineHeight: lineHeight }}
+                    >
+                      {renderStyledLineText(item, {
+                        highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                      })}
+                    </li>
+                  )
+                })()
               ))}
             </ul>
           </div>
@@ -879,9 +924,9 @@ type CarouselSlideSection = Extract<WodSection, { type: 'section' | 'dual-sectio
  * Dual: máximo por columna. Warm up, accesorios, etc. no aplican umbral (siempre usan sliders).
  */
 const DENSE_SECTION_LINE_THRESHOLD = 8
-const DENSE_LINE_HEIGHT = 1.05
-const DENSE_FONT_SIZE = 0.875
-const DENSE_CARD_SCALE = 0.6
+const DENSE_LINE_HEIGHT_DEFAULT = 1.05
+const DENSE_FONT_SIZE_DEFAULT = 0.875
+const DENSE_CARD_SCALE_DEFAULT = 0.6
 
 function isTvDenseLayoutSection(slide: CarouselSlideSection): boolean {
   const u = slide.label.toUpperCase()
@@ -901,7 +946,10 @@ function resolveTvSlideDensityLayout(
   slide: CarouselSlideSection,
   userLineHeight: number,
   userFontSize: number,
-  userCardScale: number
+  userCardScale: number,
+  denseLineHeight: number,
+  denseFontSize: number,
+  denseCardScale: number
 ): { lineHeight: number; fontSize: number; cardScale: number } {
   if (
     !isTvDenseLayoutSection(slide) ||
@@ -914,9 +962,9 @@ function resolveTvSlideDensityLayout(
     }
   }
   return {
-    lineHeight: DENSE_LINE_HEIGHT,
-    fontSize: DENSE_FONT_SIZE,
-    cardScale: DENSE_CARD_SCALE,
+    lineHeight: denseLineHeight,
+    fontSize: denseFontSize,
+    cardScale: denseCardScale,
   }
 }
 
@@ -1061,8 +1109,12 @@ export default function DashboardPage() {
   const [lineHeightList, setLineHeightList] = useState(LINE_HEIGHT_DEFAULT)
   const [cardScale, setCardScale] = useState(CARD_SCALE_DEFAULT)
   const [fontSizeScale, setFontSizeScale] = useState(FONT_SIZE_DEFAULT)
+  const [denseLineHeight, setDenseLineHeight] = useState(DENSE_LINE_HEIGHT_DEFAULT)
+  const [denseCardScale, setDenseCardScale] = useState(DENSE_CARD_SCALE_DEFAULT)
+  const [denseFontSize, setDenseFontSize] = useState(DENSE_FONT_SIZE_DEFAULT)
   const hideControlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [displayMode, setDisplayMode] = useState<DashboardDisplayMode>('tv')
+  const [showLongContentHintModal, setShowLongContentHintModal] = useState(false)
   const [sessionUid, setSessionUid] = useState<string | null>(null)
   const applyingRemoteRef = useRef(false)
   const controlNamesStripRef = useRef<HTMLDivElement>(null)
@@ -1074,6 +1126,9 @@ export default function DashboardPage() {
     lineHeightList: LINE_HEIGHT_DEFAULT,
     cardScale: CARD_SCALE_DEFAULT,
     fontSizeScale: FONT_SIZE_DEFAULT,
+    denseLineHeight: DENSE_LINE_HEIGHT_DEFAULT,
+    denseCardScale: DENSE_CARD_SCALE_DEFAULT,
+    denseFontSize: DENSE_FONT_SIZE_DEFAULT,
     isDark: true,
   })
   const lenRef = useRef(0)
@@ -1114,6 +1169,21 @@ export default function DashboardPage() {
         const f = parseFloat(storedFont)
         if (!Number.isNaN(f) && f >= FONT_SIZE_MIN && f <= FONT_SIZE_MAX) setFontSizeScale(f)
       }
+      const storedDenseLine = localStorage.getItem(STORAGE_KEY_DENSE_LINE_HEIGHT)
+      if (storedDenseLine !== null) {
+        const n = parseFloat(storedDenseLine)
+        if (!Number.isNaN(n) && n >= LINE_HEIGHT_MIN && n <= LINE_HEIGHT_MAX) setDenseLineHeight(n)
+      }
+      const storedDenseScale = localStorage.getItem(STORAGE_KEY_DENSE_CARD_SCALE)
+      if (storedDenseScale !== null) {
+        const s = parseFloat(storedDenseScale)
+        if (!Number.isNaN(s) && s >= CARD_SCALE_MIN && s <= CARD_SCALE_MAX) setDenseCardScale(s)
+      }
+      const storedDenseFont = localStorage.getItem(STORAGE_KEY_DENSE_FONT_SIZE)
+      if (storedDenseFont !== null) {
+        const f = parseFloat(storedDenseFont)
+        if (!Number.isNaN(f) && f >= FONT_SIZE_MIN && f <= FONT_SIZE_MAX) setDenseFontSize(f)
+      }
     } catch {
       // ignore
     }
@@ -1142,6 +1212,30 @@ export default function DashboardPage() {
       // ignore
     }
   }, [fontSizeScale])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_DENSE_LINE_HEIGHT, String(denseLineHeight))
+    } catch {
+      // ignore
+    }
+  }, [denseLineHeight])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_DENSE_CARD_SCALE, String(denseCardScale))
+    } catch {
+      // ignore
+    }
+  }, [denseCardScale])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_DENSE_FONT_SIZE, String(denseFontSize))
+    } catch {
+      // ignore
+    }
+  }, [denseFontSize])
 
   useEffect(() => {
     applyTheme(isDark)
@@ -1175,6 +1269,10 @@ export default function DashboardPage() {
     (s): s is Extract<WodSection, { type: 'section' | 'dual-section' }> =>
       s.type === 'section' || s.type === 'dual-section'
   )
+  const hasLongMetconOrStrengthSections = carouselSections.some(
+    (slide) =>
+      isTvDenseLayoutSection(slide) && countSectionLinesForDensity(slide) >= DENSE_SECTION_LINE_THRESHOLD
+  )
   const sectionsLengthRef = useRef(carouselSections.length)
   const currentIndexRef = useRef(0)
   sectionsLengthRef.current = carouselSections.length
@@ -1190,6 +1288,9 @@ export default function DashboardPage() {
     lineHeightList,
     cardScale,
     fontSizeScale,
+    denseLineHeight,
+    denseCardScale,
+    denseFontSize,
     isDark,
   }
 
@@ -1367,6 +1468,27 @@ export default function DashboardPage() {
         delta = true
         setFontSizeScale(data.fontSize)
       }
+      if (
+        data.denseLineHeight !== undefined &&
+        !nearlyEqualSessionNumber(data.denseLineHeight, prev.denseLineHeight)
+      ) {
+        delta = true
+        setDenseLineHeight(data.denseLineHeight)
+      }
+      if (
+        data.denseCardScale !== undefined &&
+        !nearlyEqualSessionNumber(data.denseCardScale, prev.denseCardScale)
+      ) {
+        delta = true
+        setDenseCardScale(data.denseCardScale)
+      }
+      if (
+        data.denseFontSize !== undefined &&
+        !nearlyEqualSessionNumber(data.denseFontSize, prev.denseFontSize)
+      ) {
+        delta = true
+        setDenseFontSize(data.denseFontSize)
+      }
       if (data.isDark !== undefined && data.isDark !== prev.isDark) {
         delta = true
         setIsDark(data.isDark)
@@ -1387,6 +1509,9 @@ export default function DashboardPage() {
       lineHeight: lineHeightList,
       cardScale,
       fontSize: fontSizeScale,
+      denseLineHeight,
+      denseCardScale,
+      denseFontSize,
       isDark,
     }).catch(() => {
       // permisos Firestore o red; no bloquear UI
@@ -1398,6 +1523,9 @@ export default function DashboardPage() {
     lineHeightList,
     cardScale,
     fontSizeScale,
+    denseLineHeight,
+    denseCardScale,
+    denseFontSize,
     isDark,
   ])
 
@@ -1511,6 +1639,14 @@ export default function DashboardPage() {
   }, [goPrev, goNext])
 
   const controlsVisible = displayMode === 'control' || showControls
+
+  useEffect(() => {
+    if (displayMode === 'control' && hasLongMetconOrStrengthSections) {
+      setShowLongContentHintModal(true)
+      return
+    }
+    setShowLongContentHintModal(false)
+  }, [displayMode, hasLongMetconOrStrengthSections])
 
   const controlStripLogicalIndex = useMemo(() => {
     if (len === 0) return 0
@@ -1633,18 +1769,18 @@ export default function DashboardPage() {
 
       {displayMode === 'tv' && (
       <div
-        className={`fixed bottom-4 sm:bottom-6 left-3 sm:left-6 z-50 flex flex-row flex-wrap gap-3 transition-opacity duration-300 pointer-events-none ${
+        className={`fixed bottom-2 sm:bottom-3 left-2 sm:left-2 z-50 flex flex-row flex-wrap gap-2 transition-opacity duration-300 pointer-events-none ${
           showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
         }`}
       >
         <fieldset
-          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
           aria-label="Tamaño de tarjetas"
         >
-          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+          <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
             Tamaño tarjetas
           </legend>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() =>
@@ -1652,12 +1788,12 @@ export default function DashboardPage() {
                   Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
                 )
               }
-              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Reducir tamaño de tarjetas"
             >
               −
             </button>
-            <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+            <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
               {cardScale.toFixed(2)}
             </span>
             <button
@@ -1667,7 +1803,7 @@ export default function DashboardPage() {
                   Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
                 )
               }
-              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Aumentar tamaño de tarjetas"
             >
               +
@@ -1675,13 +1811,13 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
           aria-label="Ajuste de interlineado"
         >
-          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+          <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
             Interlineado
           </legend>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() =>
@@ -1689,12 +1825,12 @@ export default function DashboardPage() {
                   Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
                 )
               }
-              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Reducir interlineado"
             >
               −
             </button>
-            <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+            <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
               {lineHeightList.toFixed(1)}
             </span>
             <button
@@ -1704,7 +1840,7 @@ export default function DashboardPage() {
                   Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
                 )
               }
-              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Aumentar interlineado"
             >
               +
@@ -1712,13 +1848,13 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className="flex flex-col gap-3 rounded-2xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-4 py-4 sm:px-5 sm:py-5 min-w-[200px] sm:min-w-[260px]"
+          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
           aria-label="Tamaño de fuente"
         >
-          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+          <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
             Tamaño fuente
           </legend>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() =>
@@ -1726,12 +1862,12 @@ export default function DashboardPage() {
                   Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
                 )
               }
-              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Reducir tamaño de fuente"
             >
               −
             </button>
-            <span className="tabular-nums text-xl sm:text-2xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[3rem] text-center">
+            <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
               {fontSizeScale.toFixed(2)}
             </span>
             <button
@@ -1741,8 +1877,119 @@ export default function DashboardPage() {
                   Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
                 )
               }
-              className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-2xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
               aria-label="Aumentar tamaño de fuente"
+            >
+              +
+            </button>
+          </div>
+        </fieldset>
+        <fieldset
+          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+          aria-label="Tamaño de tarjetas para metcon y strength extensos"
+        >
+          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+            Tarjetas largas Met/Str
+          </legend>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setDenseCardScale((v) =>
+                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                )
+              }
+              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Reducir tamaño de tarjetas largas"
+            >
+              −
+            </button>
+            <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
+              {denseCardScale.toFixed(2)}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setDenseCardScale((v) =>
+                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                )
+              }
+              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Aumentar tamaño de tarjetas largas"
+            >
+              +
+            </button>
+          </div>
+        </fieldset>
+        <fieldset
+          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+          aria-label="Interlineado para metcon y strength extensos"
+        >
+          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+            Interlineado largas Met/Str
+          </legend>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setDenseLineHeight((v) =>
+                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                )
+              }
+              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Reducir interlineado largas"
+            >
+              −
+            </button>
+            <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
+              {denseLineHeight.toFixed(1)}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setDenseLineHeight((v) =>
+                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                )
+              }
+              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Aumentar interlineado largas"
+            >
+              +
+            </button>
+          </div>
+        </fieldset>
+        <fieldset
+          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+          aria-label="Tamaño de fuente para metcon y strength extensos"
+        >
+          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+            Fuente largas Met/Str
+          </legend>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setDenseFontSize((v) =>
+                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                )
+              }
+              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Reducir tamaño de fuente largas"
+            >
+              −
+            </button>
+            <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
+              {denseFontSize.toFixed(2)}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setDenseFontSize((v) =>
+                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                )
+              }
+              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+              aria-label="Aumentar tamaño de fuente largas"
             >
               +
             </button>
@@ -1947,6 +2194,32 @@ export default function DashboardPage() {
             <>
               {displayMode === 'control' && (
                 <div className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto p-4 pb-28 sm:p-6 sm:pb-32">
+                  {showLongContentHintModal && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4">
+                      <div className="w-full max-w-md rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl dark:border-blue-800 dark:bg-[#2f2f2f]">
+                        <h3 className="text-base font-bold text-[#333] dark:text-gray-100 sm:text-lg">
+                          Hay tarjetas con mucho contenido
+                        </h3>
+                        <p className="mt-2 text-sm leading-relaxed text-[#555] dark:text-gray-300">
+                          Puedes ajustarlas con los parametros
+                          {' '}
+                          <span className="font-semibold text-[#333] dark:text-gray-100">
+                            &quot;Largas Met/Str&quot;
+                          </span>
+                          .
+                        </p>
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowLongContentHintModal(false)}
+                            className="rounded-lg bg-[#4A90E2] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#3A7BC8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2f2f2f]"
+                          >
+                            Entendido
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-2xl border border-[#d0d0d0] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] p-4 sm:p-5 shadow-sm">
                     <div>
                       <h2 className="text-lg font-bold text-[#333] dark:text-gray-100">Modo control</h2>
@@ -2157,6 +2430,108 @@ export default function DashboardPage() {
                             </button>
                           </div>
                         </fieldset>
+                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
+                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                            Tarjetas largas Met/Str
+                          </legend>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDenseCardScale((v) =>
+                                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Reducir tamaño de tarjetas largas"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                              {denseCardScale.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDenseCardScale((v) =>
+                                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Aumentar tamaño de tarjetas largas"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </fieldset>
+                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
+                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                            Interlineado largas Met/Str
+                          </legend>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDenseLineHeight((v) =>
+                                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Reducir interlineado largas"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                              {denseLineHeight.toFixed(1)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDenseLineHeight((v) =>
+                                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Aumentar interlineado largas"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </fieldset>
+                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
+                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                            Fuente largas Met/Str
+                          </legend>
+                          <div className="flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDenseFontSize((v) =>
+                                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Reducir tamaño de fuente largas"
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                              {denseFontSize.toFixed(2)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDenseFontSize((v) =>
+                                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                                )
+                              }
+                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              aria-label="Aumentar tamaño de fuente largas"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </fieldset>
                       </div>
                     </details>
                   </div>
@@ -2254,7 +2629,10 @@ export default function DashboardPage() {
                           slideSection,
                           lineHeightList,
                           fontSizeScale,
-                          cardScale
+                          cardScale,
+                          denseLineHeight,
+                          denseFontSize,
+                          denseCardScale
                         )
                         return (
                           <section
@@ -2414,7 +2792,10 @@ export default function DashboardPage() {
                               slideSection,
                               lineHeightList,
                               fontSizeScale,
-                              cardScale
+                              cardScale,
+                              denseLineHeight,
+                              denseFontSize,
+                              denseCardScale
                             )
                             const singleCardWidth = getCardWidthPercent({
                               cardScale: tvLayout.cardScale,
