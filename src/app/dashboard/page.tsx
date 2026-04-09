@@ -96,7 +96,8 @@ function getExerciseGridLayout(
   }
 ): ExerciseGridLayout {
   const { isEnduranceSection, isFuerza, isWarmup } = opts
-  if (isEnduranceSection || isFuerza || isWarmup) return 'single'
+  if (isFuerza || isWarmup) return 'single'
+  if (isEnduranceSection) return 'twoCol'
   if (listLength <= 4) return 'single'
   if (listLength < 8) return 'twoCol'
   return 'threeCol'
@@ -2481,7 +2482,7 @@ export default function DashboardPage() {
                 </div>
               )}
               {displayMode === 'tv' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center w-full overflow-hidden p-1 sm:p-[0.3rem]">
+            <div className="absolute inset-0 flex min-h-0 flex-col items-stretch overflow-hidden p-1 sm:p-[0.3rem]">
               {noWodForSelectedDate && (
                 <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 sm:p-6 md:p-8 rounded-lg max-w-lg text-center text-sm sm:text-base md:text-xl lg:text-2xl">
                   No hay WOD para la fecha seleccionada. Elige otro día.
@@ -2507,7 +2508,7 @@ export default function DashboardPage() {
               )}
               {!noWodForSelectedDate && (
                 <section
-                  className="relative h-full min-h-0 overflow-hidden w-full max-w-9xl mx-auto flex flex-col items-center justify-center"
+                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden w-full max-w-9xl mx-auto"
                   aria-roledescription="carrusel"
                   aria-label="Carrusel de secciones del WOD del día"
                 >
@@ -2558,7 +2559,7 @@ export default function DashboardPage() {
                     </>
                   )}
                   <div
-                    className="flex h-full min-h-0 w-full items-stretch"
+                    className="flex h-full min-h-0 w-full flex-1"
                     style={{
                       transform: `translateX(-${currentIndex * 100}%)`,
                       transition:
@@ -2580,14 +2581,14 @@ export default function DashboardPage() {
                         return (
                           <section
                             key={slideSection.renderKey}
-                            className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
+                            className="flex-[0_0_100%] min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                             aria-label={
                               useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
                             }
                             aria-hidden={useInfinite ? index !== currentIndex : undefined}
                           >
                             <div
-                              className="flex max-h-full min-h-0 w-full max-w-[98%] flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
+                              className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
                               style={{
                                 width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
                                 transform: `scale(${tvLayout.cardScale})`,
@@ -2724,7 +2725,7 @@ export default function DashboardPage() {
                       return (
                         <section
                           key={slideSection.renderKey}
-                          className="flex-[0_0_100%] min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
+                          className="flex-[0_0_100%] min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
                           aria-label={
                             useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
                           }
@@ -2756,7 +2757,7 @@ export default function DashboardPage() {
 
                             return (
                           <div
-                            className="flex max-h-full min-h-0 w-full max-w-[98%] flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
+                            className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
                             style={{
                               width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
                               transform: `scale(${tvLayout.cardScale})`,
