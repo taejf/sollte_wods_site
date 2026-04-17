@@ -52,6 +52,8 @@ function DualColumnSectionHeader({ label }: { label: string }) {
 }
 
 const BLOCK_TITLE_ENDURANCE = 'Endurance'
+const PARTNER_WOD_REGEX = /\bpartner\s*wod\b/i
+const ACCESORIOS_SECTION_TITLE_REGEX = /^(accesorios|skills):?$/i
 
 function buildBlocks(lines: string[]): { title: string | null; lines: string[] }[] {
   const blocks: { title: string | null; lines: string[] }[] = []
@@ -61,7 +63,7 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
   for (const line of lines) {
     const t = line.trim()
     const isSollte = /^sollte\s+functional:?/i.test(t) || /^sollte\s+funcional:?/i.test(t)
-    const isAccesorios = /^accesorios:?/i.test(t)
+    const isAccesorios = ACCESORIOS_SECTION_TITLE_REGEX.test(t)
     const isEndurance = /\bEndurance\b/i.test(t)
 
     if (isSollte) {
@@ -78,7 +80,7 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
         blocks.push({ title: currentTitle, lines: currentLines })
         currentLines = []
       }
-      currentTitle = 'Accesorios:'
+      currentTitle = /^skills:?$/i.test(t) ? 'Skills:' : 'Accesorios:'
     } else if (isEndurance) {
       if (currentLines.length > 0) {
         blocks.push({
@@ -104,9 +106,16 @@ function blocksToLines(blocks: { title: string | null; lines: string[] }[]): str
   for (const block of blocks) {
     if (block.title === 'Sollte funcional') out.push('Sollte funcional:')
     else if (block.title === 'Accesorios:') out.push('Accesorios:')
+    else if (block.title === 'Skills:') out.push('Skills:')
     out.push(...block.lines)
   }
   return out
+}
+
+function removeFirstMatchingLine(lines: string[], predicate: (line: string) => boolean): string[] {
+  const idx = lines.findIndex(predicate)
+  if (idx < 0) return lines
+  return [...lines.slice(0, idx), ...lines.slice(idx + 1)]
 }
 
 /** Debe coincidir con las clases grid de las listas de ejercicios. */
@@ -163,16 +172,16 @@ function exerciseGridItemBottomBorderClasses(
 ): string {
   if (total <= 0) return ''
   const basePad = 'py-2 sm:py-3 min-w-0 break-words'
+  const basePadFirst = 'pt-0.5 pb-2 sm:pt-1 sm:pb-3 min-w-0 break-words'
   const basePadCompactFirst = '-mt-0.5 pt-0 pb-2 sm:pt-0 sm:pb-3 min-w-0 break-words'
   const notePad = 'pt-0.5 pb-1.5 sm:pt-1 sm:pb-2 min-w-0 break-words'
+  const notePadFirst = 'pt-0 pb-1.5 sm:pt-0.5 sm:pb-2 min-w-0 break-words'
   const subtitlePad = 'pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const subtitlePadCompactFirst = '-mt-0.5 pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const beforeNotePad = 'pt-2 pb-0.5 sm:pt-3 sm:pb-1 min-w-0 break-words'
   /** Surco con relieve: sombra interior + filo claro (modo claro / oscuro). */
   const b =
-    'border-b-0 ' +
-    'shadow-[inset_0_-2px_0_0_rgba(15,23,42,0.13),inset_0_-1px_0_0_rgba(255,255,255,0.52)] ' +
-    'dark:shadow-[inset_0_-2px_0_0_rgba(0,0,0,0.68),inset_0_-1px_0_0_rgba(255,255,255,0.07)]'
+    "relative border-b-0 after:content-[''] after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-0 after:h-px after:w-[300px] after:bg-[#b7e6f2]/75 dark:after:bg-[#9ad7e6]/60"
   const isCurrentSubtitle = !!item && isSubtitleLine(item, ctx)
   const isCurrentSpecial =
     !!item && (isSpecialStyledLine(item) || (ctx?.isFirstItem && isForTimeLine(item)))
@@ -183,9 +192,15 @@ function exerciseGridItemBottomBorderClasses(
     }
     return `${subtitlePad} border-b-0`
   }
+  if (ctx?.isFirstItem && isCurrentSpecial) {
+    return `${notePadFirst} border-b-0`
+  }
   if (isCurrentSpecial) return `${notePad} border-b-0`
   if (ctx?.isFirstItem && ctx.compactFirstItemTopSpacing) {
     return index + 1 >= total ? `${basePadCompactFirst} border-b-0` : `${basePadCompactFirst} ${b}`
+  }
+  if (ctx?.isFirstItem) {
+    return index + 1 >= total ? `${basePadFirst} border-b-0` : `${basePadFirst} ${b}`
   }
   return index + 1 >= total ? `${basePad} border-b-0` : `${basePad} ${b}`
 }
@@ -644,19 +659,23 @@ function SectionSlide({
   /** Cuando hay dos columnas, el título va en {@link DualColumnSectionHeader} y no en la franja. */
   hideVerticalLabel?: boolean
 }) {
-  const items = lines
+  const rawItems = lines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
-  if (items.length === 0) return null
-  const firstLine = items[0]
-  const restLines = items.slice(1)
+  if (rawItems.length === 0) return null
   const isMetcon = label.toUpperCase().startsWith('METCON')
+  const partnerWodLine = isMetcon ? rawItems.find((line) => PARTNER_WOD_REGEX.test(line)) ?? null : null
+  const items = isMetcon ? removeFirstMatchingLine(rawItems, (line) => PARTNER_WOD_REGEX.test(line)) : rawItems
+  const effectiveItems = items.length > 0 ? items : rawItems
+  const firstLine = effectiveItems[0]
+  const restLines = effectiveItems.slice(1)
   const isWarmup = label.toUpperCase().startsWith('WARM')
   const isAccesorios = label.toUpperCase().startsWith('ACCESORIOS')
   const isFuerza = label === 'STRENGTH'
   const blocks = buildBlocks(restLines)
-  const hasEnduranceKeyword = items.some((line) => /\bEndurance\b/i.test(line))
-  const hasEnduranceKeywordInMetcon = isMetcon && items.some((line) => /\bEndurance\b/i.test(line))
+  const hasEnduranceKeyword = effectiveItems.some((line) => /\bEndurance\b/i.test(line))
+  const hasEnduranceKeywordInMetcon =
+    isMetcon && effectiveItems.some((line) => /\bEndurance\b/i.test(line))
   const isEnduranceSection =
     isMetcon &&
     (/\bEndurance\b/i.test(firstLine) ||
@@ -666,22 +685,36 @@ function SectionSlide({
   const headerToContentSpacingClass = hideVerticalLabel
     ? ''
     : isWarmup
-      ? 'mt-1 sm:mt-1.5 md:mt-2'
-      : 'mt-2 sm:mt-3 md:mt-4'
+      ? 'mt-0.5 sm:mt-1 md:mt-1.5'
+      : 'mt-1 sm:mt-1.5 md:mt-2'
   const contentPaddingClass = isWarmup
     ? 'px-4 pb-4 pt-0.5 sm:px-5 sm:pb-5 sm:pt-1 md:px-6 md:pb-6 md:pt-1.5 lg:px-8 lg:pb-8 lg:pt-2'
     : 'p-4 sm:p-5 md:p-6 lg:p-8'
-  const accesoriosBlock = blocks.find((b) => /^accesorios:?$/i.test((b.title ?? '').trim()))
+  const accesoriosBlock = blocks.find((b) =>
+    ACCESORIOS_SECTION_TITLE_REGEX.test((b.title ?? '').trim())
+  )
   const shouldUseAccesoriosDualByTitle =
-    isAccesorios && !hasEnduranceKeyword && /^conditioning\b/i.test(firstLine) && !!accesoriosBlock
+    isAccesorios &&
+    !hasEnduranceKeyword &&
+    /^(conditioning|core workout|endurance)\b/i.test(firstLine) &&
+    !!accesoriosBlock
   const shouldFlattenAccesoriosSingleTrack =
     isAccesorios && !shouldUseAccesoriosDualByTitle
+  const accesoriosInlineHeaderMatch = shouldFlattenAccesoriosSingleTrack
+    ? items[0]?.match(/^(skills|accesorios):\s*(.+)$/i) ?? null
+    : null
+  const accesoriosInlineHeaderLine = accesoriosInlineHeaderMatch
+    ? `${accesoriosInlineHeaderMatch[1][0].toUpperCase()}${accesoriosInlineHeaderMatch[1].slice(1).toLowerCase()}: ${accesoriosInlineHeaderMatch[2]}`
+    : null
   const accesoriosSingleTrackLines = shouldFlattenAccesoriosSingleTrack
-    ? items.filter((line, idx) => !(idx === 0 && /^accesorios:?$/i.test(line.trim())))
+    ? items.filter((line, idx) => {
+        if (idx === 0 && accesoriosInlineHeaderMatch) return false
+        return !ACCESORIOS_SECTION_TITLE_REGEX.test(line.trim())
+      })
     : []
   const conditioningLinesForAccesoriosDual = shouldUseAccesoriosDualByTitle
     ? blocks
-        .filter((b) => !/^accesorios:?$/i.test((b.title ?? '').trim()))
+        .filter((b) => !ACCESORIOS_SECTION_TITLE_REGEX.test((b.title ?? '').trim()))
         .flatMap((b) => b.lines)
     : []
   const accesoriosLinesForAccesoriosDual = shouldUseAccesoriosDualByTitle
@@ -695,16 +728,27 @@ function SectionSlide({
       {!hideVerticalLabel && (
         <DualColumnSectionHeader label={label} />
       )}
+      {isMetcon && partnerWodLine && (
+        <div className="mt-1 sm:mt-1.5 md:mt-2 flex justify-center">
+          <span className="inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base">
+            {partnerWodLine}
+          </span>
+        </div>
+      )}
       <div
-        className={`flex-1 min-h-0 ${contentPaddingClass} overflow-y-auto flex flex-col ${headerToContentSpacingClass}`}
-        style={{ fontSize: `${fontSize}rem` }}
+        className={`flex-1 min-h-0 ${contentPaddingClass} overflow-y-auto [&::-webkit-scrollbar]:hidden flex flex-col ${headerToContentSpacingClass}`}
+        style={{ fontSize: `${fontSize}rem`, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {restLines.length > 0 ? (
           <>
             {!isMetcon && !shouldUseAccesoriosDualByTitle && !shouldFlattenAccesoriosSingleTrack && (
               <p
                 className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
-                  isAccesorios ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
+                  isAccesorios
+                    ? 'mb-0 leading-tight'
+                    : isWarmup
+                      ? 'mb-0 sm:mb-0.5 md:mb-1'
+                      : 'mb-1 sm:mb-1.5 md:mb-2'
                 }`}
               >
                 {firstLine}
@@ -713,7 +757,7 @@ function SectionSlide({
             {isMetcon ? (
               <>
                 {isEnduranceSection ? (
-                  <div className="mb-2 sm:mb-3 md:mb-4">
+                  <div className="mb-1 sm:mb-1.5 md:mb-2">
                     <p
                       className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                         restLines[0] && isSubtitleLine(restLines[0], { isFirstItem: true })
@@ -745,7 +789,7 @@ function SectionSlide({
                       return (
                         <div
                           key={`${block.title ?? 'Crossfit'}-${titleLine}`}
-                          className="mb-2 sm:mb-3 md:mb-4"
+                          className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
                             className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
@@ -765,7 +809,7 @@ function SectionSlide({
                       return (
                         <div
                           key={`${block.title ?? 'Sollte funcional'}-${titleLine}`}
-                          className="mb-2 sm:mb-3 md:mb-4"
+                          className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
                             className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
@@ -784,7 +828,7 @@ function SectionSlide({
                       return (
                         <div
                           key={`${block.title ?? BLOCK_TITLE_ENDURANCE}-${titleLine}`}
-                          className="mb-2 sm:mb-3 md:mb-4"
+                          className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}>
                             {titleLine}
@@ -809,7 +853,7 @@ function SectionSlide({
                   const allListLines = isEnduranceSection
                     ? restLines.slice(1)
                     : shouldFlattenSingleTrackMetcon
-                      ? items
+                      ? effectiveItems
                     : blocks.flatMap((block) => {
                         const isSollteBlock = block.title === 'Sollte funcional'
                         const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
@@ -875,26 +919,29 @@ function SectionSlide({
                       items={allListLines}
                       layout={gridLayout}
                       lineHeight={lineHeight}
-                      extraLiClass={isEnduranceSection ? () => 'text-center' : undefined}
+                      extraLiClass={
+                        isEnduranceSection || shouldFlattenSingleTrackMetcon
+                          ? () => 'text-center'
+                          : undefined
+                      }
                     />
                   )
                 })()}
               </>
             ) : shouldFlattenAccesoriosSingleTrack ? (
-              <ExerciseMultiColumnGrid
-                items={accesoriosSingleTrackLines}
-                layout={
-                  hasEnduranceKeyword
-                    ? 'single'
-                    : getExerciseGridLayout(accesoriosSingleTrackLines.length, {
-                  isEnduranceSection: false,
-                  isFuerza,
-                  isWarmup: false,
-                })
-                }
-                lineHeight={lineHeight}
-                compactFirstItemTopSpacing
-              />
+              <>
+                {accesoriosInlineHeaderLine && (
+                  <p className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0.5 sm:mb-1 md:mb-1.5 ${hideVerticalLabel ? '' : 'text-center'}`}>
+                    {accesoriosInlineHeaderLine}
+                  </p>
+                )}
+                <ExerciseMultiColumnGrid
+                  items={accesoriosSingleTrackLines}
+                  layout="single"
+                  lineHeight={lineHeight}
+                  compactFirstItemTopSpacing
+                />
+              </>
             ) : shouldUseAccesoriosDualByTitle ? (
               <div className="mt-2 sm:mt-3 md:mt-4 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8">
                 <div className="min-w-0">
@@ -1018,12 +1065,23 @@ function DualSectionSlide({
   fontSize?: number
   className?: string
 }) {
-  const crossfitItems = crossfitLines
+  const dualColumnFontSize = clamp(fontSize * 1.14, 0.9, 1.45)
+  const rawCrossfitItems = crossfitLines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
-  const functionalItems = functionalLines
+  const rawFunctionalItems = functionalLines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
+  const partnerWodLine =
+    rawCrossfitItems.find((line) => PARTNER_WOD_REGEX.test(line)) ??
+    rawFunctionalItems.find((line) => PARTNER_WOD_REGEX.test(line)) ??
+    null
+  const crossfitItems = removeFirstMatchingLine(rawCrossfitItems, (line) =>
+    PARTNER_WOD_REGEX.test(line)
+  )
+  const functionalItems = removeFirstMatchingLine(rawFunctionalItems, (line) =>
+    PARTNER_WOD_REGEX.test(line)
+  )
   const hasCrossfitSubtitleFirstItem =
     crossfitItems.length > 0 && isSubtitleLine(crossfitItems[0], { isFirstItem: true })
   const hasFunctionalSubtitleFirstItem =
@@ -1035,21 +1093,28 @@ function DualSectionSlide({
 
   return (
     <div
-      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-2 sm:gap-3 md:gap-4 ${className}`}
+      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-1.5 sm:gap-2.5 md:gap-3 ${className}`}
     >
       <DualColumnSectionHeader label={label} />
-      <div className="flex min-h-0 flex-1 items-stretch gap-3 sm:gap-4 md:gap-6">
+      {partnerWodLine && (
+        <div className="flex justify-center">
+          <span className="inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base">
+            {partnerWodLine}
+          </span>
+        </div>
+      )}
+      <div className="flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3 md:gap-4">
       {crossfitItems.length > 0 && (
         <div
           className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}
         >
           <div
-            className="flex min-h-0 flex-1 flex-col justify-start p-4 sm:p-5 md:p-6 lg:p-8"
-            style={{ fontSize: `${fontSize}rem` }}
+            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+            style={{ fontSize: `${dualColumnFontSize}rem` }}
           >
             <p
               className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
+                hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
               }`}
             >
               Crossfit
@@ -1081,12 +1146,12 @@ function DualSectionSlide({
           className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}
         >
           <div
-            className="flex min-h-0 flex-1 flex-col justify-start p-4 sm:p-5 md:p-6 lg:p-8"
-            style={{ fontSize: `${fontSize}rem` }}
+            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+            style={{ fontSize: `${dualColumnFontSize}rem` }}
           >
             <p
               className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
+                hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
               }`}
             >
               Funcional
@@ -2348,7 +2413,10 @@ export default function DashboardPage() {
           {!loading && !error && (
             <>
               {displayMode === 'control' && (
-                <div className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto p-4 pb-36 sm:p-6 sm:pb-40">
+                <div
+                  className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto [&::-webkit-scrollbar]:hidden p-4 pb-36 sm:p-6 sm:pb-40"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
                   {showLongContentHintModal && (
                     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4">
                       <div className="w-full max-w-md rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl dark:border-blue-800 dark:bg-[#2f2f2f]">
@@ -2794,7 +2862,7 @@ export default function DashboardPage() {
                         return (
                           <section
                             key={slideSection.renderKey}
-                            className="absolute inset-0 min-h-0 min-w-0 h-full pl-0 pr-2 sm:pr-3 md:pr-4 flex items-center justify-start transition-opacity duration-700 ease-in-out"
+                            className="absolute inset-0 min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center transition-opacity duration-700 ease-in-out"
                             style={{
                               opacity: isActive ? 1 : 0,
                               pointerEvents: isActive ? 'auto' : 'none',
@@ -2805,11 +2873,13 @@ export default function DashboardPage() {
                             aria-hidden={!isActive}
                           >
                             <div
-                              className="flex max-h-full min-h-0 w-full max-w-full flex-1 flex-col items-start justify-center overflow-y-auto py-1 sm:py-2"
+                              className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto [&::-webkit-scrollbar]:hidden py-1 sm:py-2"
                               style={{
                                 width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
                                 transform: `scale(${tvLayout.cardScale})`,
-                                transformOrigin: 'left center',
+                                transformOrigin: 'center center',
+                                scrollbarWidth: 'none',
+                                msOverflowStyle: 'none',
                               }}
                             >
                               <DualSectionSlide
@@ -2981,11 +3051,13 @@ export default function DashboardPage() {
 
                             return (
                           <div
-                            className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
+                            className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto [&::-webkit-scrollbar]:hidden py-1 sm:py-2"
                             style={{
                               width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
                               transform: `scale(${tvLayout.cardScale})`,
                               transformOrigin: 'center center',
+                              scrollbarWidth: 'none',
+                              msOverflowStyle: 'none',
                             }}
                           >
                             {singleEnduranceCard ? (
