@@ -33,7 +33,7 @@ import type { WodDoc, WodsApiResponse } from '@/lib/wod'
 
 /** Superficie e icono compartidos: flechas carrusel TV y modo control (mismo aspecto). */
 const carouselArrowButtonSurfaceClassName =
-  'rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200'
+  'rounded-lg bg-black/30 text-gray-100 border border-white/15 shadow-sm hover:bg-black/45 hover:border-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200'
 
 const carouselArrowIconClassNameTv =
   'w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20'
@@ -229,11 +229,11 @@ function splitWarmupIntoTwoColumns(items: string[]): string[][] {
 }
 
 const EXERCISE_LINE_TEXT =
-  'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
+  'text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
 const NOTE_LINE_TEXT =
-  'text-[#333] dark:text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
+  'text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
 const SUBTITLE_LINE_TEXT =
-  'text-[#666] dark:text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
+  'text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
 
 /**
  * Mapa de puntos donde se decide la tipografía por línea (y tokens #00FFFF / énfasis).
@@ -597,29 +597,23 @@ type DashboardDisplayMode = 'tv' | 'control'
 
 /** Tarjetas de contenido (WOD): volumen con gradiente de luz + sombras en capas (especialmente visibles en TV / oscuro). */
 const dashboardSectionCardClassName =
-  'rounded-xl sm:rounded-2xl border border-[#9a9aa8]/90 dark:border-gray-400/30 ' +
-  'bg-gradient-to-br from-white via-[#fafbfc] to-[#e6e8ed] ' +
-  'dark:bg-gradient-to-br dark:from-[#4a4a4a] dark:via-[#383838] dark:to-[#262626] ' +
-  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.75),inset_0_-2px_4px_rgba(15,23,42,0.04),0_2px_4px_-1px_rgba(15,23,42,0.07),0_10px_22px_-6px_rgba(15,23,42,0.11),0_22px_48px_-14px_rgba(15,23,42,0.13)] ' +
-  'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.16),inset_0_-6px_14px_rgba(0,0,0,0.42),0_6px_12px_-2px_rgba(0,0,0,0.55),0_16px_36px_-8px_rgba(0,0,0,0.62),0_32px_64px_-16px_rgba(0,0,0,0.5)]'
+  'rounded-xl sm:rounded-2xl border border-gray-400/30 ' +
+  'bg-gradient-to-br from-[#4a4a4a] via-[#383838] to-[#262626] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.16),inset_0_-6px_14px_rgba(0,0,0,0.42),0_6px_12px_-2px_rgba(0,0,0,0.55),0_16px_36px_-8px_rgba(0,0,0,0.62),0_32px_64px_-16px_rgba(0,0,0,0.5)]'
 
 const dashboardControlMainCardClassName = dashboardSectionCardClassName
   .replace('rounded-xl sm:rounded-2xl', 'rounded-2xl')
 
 /** Paneles flotantes del modo control: relieve acorde a las tarjetas de sección. */
 const dashboardControlPanel3dClassName =
-  'rounded-xl border border-gray-200/90 dark:border-gray-400/30 ' +
-  'bg-gradient-to-br from-white via-[#fafbfc] to-[#e8eaef] ' +
-  'dark:bg-gradient-to-br dark:from-[#454545] dark:via-[#3a3a3a] dark:to-[#2c2c2c] ' +
-  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.7),0_2px_6px_-1px_rgba(15,23,42,0.08),0_12px_28px_-8px_rgba(15,23,42,0.12)] ' +
-  'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.12),inset_0_-4px_10px_rgba(0,0,0,0.35),0_6px_14px_-2px_rgba(0,0,0,0.5),0_18px_40px_-10px_rgba(0,0,0,0.48)]'
+  'rounded-xl border border-gray-400/30 ' +
+  'bg-gradient-to-br from-[#454545] via-[#3a3a3a] to-[#2c2c2c] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.12),inset_0_-4px_10px_rgba(0,0,0,0.35),0_6px_14px_-2px_rgba(0,0,0,0.5),0_18px_40px_-10px_rgba(0,0,0,0.48)]'
 
 const dashboardControlPanel3dBlueClassName =
-  'rounded-xl border border-blue-200/95 dark:border-blue-800/90 ' +
-  'bg-gradient-to-br from-white via-[#f8faff] to-[#e8ecf5] ' +
-  'dark:bg-gradient-to-br dark:from-[#404858] dark:via-[#353d4d] dark:to-[#2a3140] ' +
-  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.7),0_2px_6px_-1px_rgba(30,58,138,0.08),0_12px_28px_-8px_rgba(15,23,42,0.12)] ' +
-  'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.11),inset_0_-4px_10px_rgba(0,0,0,0.38),0_6px_14px_-2px_rgba(0,0,0,0.52),0_18px_40px_-10px_rgba(0,0,0,0.5)]'
+  'rounded-xl border border-blue-800/90 ' +
+  'bg-gradient-to-br from-[#404858] via-[#353d4d] to-[#2a3140] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.11),inset_0_-4px_10px_rgba(0,0,0,0.38),0_6px_14px_-2px_rgba(0,0,0,0.52),0_18px_40px_-10px_rgba(0,0,0,0.5)]'
 
 function nearlyEqualSessionNumber(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6
@@ -1963,7 +1957,7 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_32%,#e4ebf5_0%,#f0f2f6_38%,#f5f5f5_65%,#ebebeb_100%)] dark:bg-[radial-gradient(circle_at_50%_28%,#2d3544_0%,#22262e_40%,#1a1a1a_68%,#121212_100%)]">
+    <div className="dark min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_28%,#2d3544_0%,#22262e_40%,#1a1a1a_68%,#121212_100%)]">
       {displayMode === 'tv' && (
       <div className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(34rem,calc(100vw-1rem))] flex-col gap-3.5 sm:left-3 sm:top-3 sm:gap-4">
         <div className="pointer-events-auto inline-flex w-fit items-center px-8 py-5 sm:px-9 sm:py-5">
@@ -1972,7 +1966,7 @@ export default function DashboardPage() {
             alt="Sollte Logo"
             width={360}
             height={136}
-            className="h-16 w-auto sm:h-18 md:h-20 dark:invert object-contain"
+            className="h-16 w-auto sm:h-18 md:h-20 invert object-contain"
             unoptimized
           />
         </div>
