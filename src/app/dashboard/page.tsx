@@ -45,7 +45,7 @@ const carouselArrowIconClassNameControl =
 /** Título único encima de dos columnas (METCON / STRENGTH duales). */
 function DualColumnSectionHeader({ label }: { label: string }) {
   return (
-    <h2 className="m-0 w-full shrink-0 p-0 text-center text-2xl font-bold uppercase tracking-wider text-transparent [-webkit-text-stroke:1.5px_#42FFFF] [text-shadow:0_0_6px_rgba(66,255,255,0.75),0_0_14px_rgba(66,255,255,0.5),0_0_26px_rgba(66,255,255,0.3)] sm:text-3xl md:text-5xl lg:text-7xl">
+    <h2 className="m-0 w-full shrink-0 p-0 text-center text-3xl font-bold uppercase tracking-wider text-transparent [-webkit-text-stroke:1.5px_#42FFFF] [text-shadow:0_0_6px_rgba(66,255,255,0.75),0_0_14px_rgba(66,255,255,0.5),0_0_26px_rgba(66,255,255,0.3)] sm:text-5xl md:text-7xl lg:text-8xl">
       {label}
     </h2>
   )
@@ -638,9 +638,9 @@ function getCardWidthPercent(opts: {
   const { lineHeight, fontSizeScale, dual = false } = opts
   // El ajuste de ancho depende del contenido tipográfico.
   const fitFactor = Math.max(fontSizeScale, lineHeight / LINE_HEIGHT_DEFAULT)
-  const base = dual ? 98 : 96
+  const base = dual ? 102 : 96
   const computed = base / Math.max(0.6, fitFactor)
-  return clamp(computed, dual ? 66 : 58, 98)
+  return clamp(computed, dual ? 72 : 58, dual ? 100 : 98)
 }
 
 function SectionSlide({
@@ -1093,7 +1093,7 @@ function DualSectionSlide({
 
   return (
     <div
-      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-1.5 sm:gap-2.5 md:gap-3 ${className}`}
+      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-1 sm:gap-1.5 md:gap-2 ${className}`}
     >
       <DualColumnSectionHeader label={label} />
       {partnerWodLine && (
@@ -1103,7 +1103,7 @@ function DualSectionSlide({
           </span>
         </div>
       )}
-      <div className="flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3 md:gap-4">
+      <div className="flex min-h-0 flex-1 items-stretch gap-1.5 sm:gap-2 md:gap-3">
       {crossfitItems.length > 0 && (
         <div
           className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}
@@ -1964,62 +1964,61 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_32%,#e4ebf5_0%,#f0f2f6_38%,#f5f5f5_65%,#ebebeb_100%)] dark:bg-[radial-gradient(circle_at_50%_28%,#2d3544_0%,#22262e_40%,#1a1a1a_68%,#121212_100%)]">
-      <header className="sticky top-0 z-40 shrink-0 border-b border-white/50 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 bg-gradient-to-b from-white/70 via-white/45 to-white/[0.28] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.85),0_10px_40px_-12px_rgba(15,23,42,0.18),0_1px_0_0_rgba(255,255,255,0.4)_inset] backdrop-blur-2xl backdrop-saturate-[1.75] dark:border-white/[0.12] dark:from-gray-800/55 dark:via-gray-900/38 dark:to-gray-950/25 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14),0_12px_48px_-16px_rgba(0,0,0,0.55)]">
-        <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center w-full max-w-full sm:max-w-[900px] mx-auto gap-2 sm:gap-4 min-w-0">
-          <div className="flex flex-col gap-2 order-2 sm:order-1 min-w-0">
-            <p
-              className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-left overflow-hidden"
-              title={dateLabel.full}
-            >
-              <span className="hidden sm:block truncate">
-                {dateLabel.weekday}
-                <br />
-                {dateLabel.datePart}
-              </span>
-              <span className="sm:hidden block truncate">
-                {dateLabel.weekday}, {dateLabel.datePart}
-              </span>
-            </p>
-            {isSedeMaestra && (
-              <label className="flex items-center gap-2 text-[#333] dark:text-gray-200 text-sm sm:text-base">
-                <span className="font-medium">Consultar WOD del día:</span>
-                <input
-                  type="date"
-                  value={
-                    selectedWodDate.getFullYear() +
-                    '-' +
-                    String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
-                    '-' +
-                    String(selectedWodDate.getDate()).padStart(2, '0')
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value
-                    if (val) {
-                      const d = new Date(`${val}T12:00:00`)
-                      d.setHours(0, 0, 0, 0)
-                      setSelectedWodDate(d)
-                    }
-                  }}
-                  className="rounded-lg border border-[#d0d0d0] dark:border-gray-500 bg-white dark:bg-[#2a2a2a] text-[#333] dark:text-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]"
-                />
-              </label>
-            )}
-          </div>
-          <div className="flex justify-center items-center order-1 sm:order-2 min-w-0 shrink-0 overflow-hidden">
-            <Image
-              src="/sollte_negro_full.png"
-              alt="Sollte Logo"
-              width={180}
-              height={72}
-              className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto max-w-[45vw] sm:max-w-[200px] dark:invert object-contain"
-              unoptimized
+      {displayMode === 'tv' && (
+      <div className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(34rem,calc(100vw-1rem))] flex-col gap-3.5 sm:left-3 sm:top-3 sm:gap-4">
+        <div className="pointer-events-auto inline-flex w-fit items-center px-8 py-5 sm:px-9 sm:py-5">
+          <Image
+            src="/sollte_negro_full.png"
+            alt="Sollte Logo"
+            width={360}
+            height={136}
+            className="h-16 w-auto sm:h-18 md:h-20 dark:invert object-contain"
+            unoptimized
+          />
+        </div>
+        {isSedeMaestra && (
+          <label
+            className={`inline-flex w-fit items-center gap-4 rounded-[1.6rem] border border-white/45 bg-transparent px-8 py-5 text-xl sm:text-2xl text-[#333] dark:text-gray-200 shadow-[0_12px_26px_-12px_rgba(15,23,42,0.65)] transition-opacity duration-300 dark:border-white/15 dark:bg-transparent ${
+              controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <span className="font-medium whitespace-nowrap">WOD del día</span>
+            <input
+              type="date"
+              value={
+                selectedWodDate.getFullYear() +
+                '-' +
+                String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
+                '-' +
+                String(selectedWodDate.getDate()).padStart(2, '0')
+              }
+              onChange={(e) => {
+                const val = e.target.value
+                if (val) {
+                  const d = new Date(`${val}T12:00:00`)
+                  d.setHours(0, 0, 0, 0)
+                  setSelectedWodDate(d)
+                }
+              }}
+              className="rounded-xl border border-[#d0d0d0] dark:border-gray-500 bg-white dark:bg-[#2a2a2a] text-[#333] dark:text-gray-200 px-3.5 py-2 text-xl sm:text-2xl focus:outline-none focus:ring-2 focus:ring-[#4A90E2]"
             />
-          </div>
-          <p className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-4xl font-medium text-center sm:text-right tabular-nums order-3 min-w-0 overflow-hidden truncate">
-            {currentTime}
+          </label>
+        )}
+      </div>
+      )}
+      {displayMode === 'tv' && (
+      <div className="pointer-events-none fixed right-2 top-2 z-40 sm:right-3 sm:top-3">
+        <div className="pointer-events-auto inline-flex max-w-[min(38rem,calc(100vw-1rem))] items-center px-8 py-5 sm:px-9 sm:py-5">
+          <p
+            className="text-[#333] dark:text-gray-200 text-xl sm:text-2xl md:text-3xl font-semibold tabular-nums tracking-wide leading-tight text-center"
+            title={`${dateLabel.full} · ${currentTime}`}
+          >
+            <span className="block whitespace-nowrap">{dateLabel.weekday}, {dateLabel.datePart}</span>
+            <span className="mt-1 block whitespace-nowrap">{currentTime}</span>
           </p>
         </div>
-      </header>
+      </div>
+      )}
 
       {displayMode === 'tv' && (
       <div
@@ -2394,7 +2393,13 @@ export default function DashboardPage() {
       )}
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <main className="flex-1 flex flex-col min-h-0 w-full max-w-[98vw] sm:max-w-[95vw] mx-auto p-1 sm:p-[0.3rem] overflow-hidden relative">
+        <main
+          className={`flex-1 flex flex-col min-h-0 w-full overflow-hidden relative ${
+            displayMode === 'tv'
+              ? 'max-w-none mx-0 px-0'
+              : 'max-w-[98vw] sm:max-w-[95vw] mx-auto p-1 sm:p-[0.3rem]'
+          }`}
+        >
           {loading && (
             <div className="flex-1 flex flex-col items-center justify-center min-h-0">
               <div className="w-8 h-8 sm:w-10 sm:h-10 border-4 border-[#f3f3f3] dark:border-gray-700 border-t-[#4A90E2] rounded-full animate-spin" />
@@ -2451,6 +2456,30 @@ export default function DashboardPage() {
                       <p className="mt-1 text-xs text-[#666] dark:text-gray-400">
                         Mismo usuario admin que la TV · Flechas o deslizar para cambiar de sección
                       </p>
+                      {isSedeMaestra && (
+                        <label className="mt-3 inline-flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-sm text-[#333] dark:border-gray-600 dark:bg-[#2a2a2a] dark:text-gray-200 sm:text-base">
+                          <span className="font-medium whitespace-nowrap">WOD del día</span>
+                          <input
+                            type="date"
+                            value={
+                              selectedWodDate.getFullYear() +
+                              '-' +
+                              String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
+                              '-' +
+                              String(selectedWodDate.getDate()).padStart(2, '0')
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val) {
+                                const d = new Date(`${val}T12:00:00`)
+                                d.setHours(0, 0, 0, 0)
+                                setSelectedWodDate(d)
+                              }
+                            }}
+                            className="rounded-md border border-[#d0d0d0] bg-white px-2 py-1 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#4A90E2] dark:border-gray-500 dark:bg-[#2a2a2a] dark:text-gray-200 sm:text-base"
+                          />
+                        </label>
+                      )}
                       <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-[#f0f4f8] dark:bg-[#2a2a2a]">
                         {len === 0 ? (
                           <p className="px-4 py-8 text-center text-sm text-[#666] dark:text-gray-400">
@@ -3047,7 +3076,7 @@ export default function DashboardPage() {
                               fontSizeScale: tvLayout.fontSize,
                               dual: true,
                             })
-                            const dynamicGapPx = clamp(8 * tvLayout.cardScale, 6, 20)
+                            const dynamicGapPx = clamp(5 * tvLayout.cardScale, 3, 12)
 
                             return (
                           <div
