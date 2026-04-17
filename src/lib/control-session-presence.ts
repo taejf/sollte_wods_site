@@ -7,7 +7,7 @@ import {
   setDoc,
   type Timestamp,
 } from 'firebase/firestore'
-import { controlSessionDocRef } from '@/lib/controlSession'
+import { controlSessionDocRef } from '@/lib/control-session'
 
 const PRESENCE_SUBCOLLECTION = 'presence'
 const DEVICE_ID_STORAGE_KEY = 'dashboard-session-device-id'
@@ -73,8 +73,7 @@ function parsePeer(deviceId: string, raw: Record<string, unknown>): SessionPrese
   const mode: SessionPresenceMode | null =
     modeRaw === 'control' ? 'control' : modeRaw === 'tv' ? 'tv' : null
   if (!mode) return null
-  const label =
-    typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : 'Dispositivo'
+  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : 'Dispositivo'
   const ms = lastSeenToMs(raw.lastSeen)
   const lastSeenMs = ms > 0 ? ms : Date.now()
   return { deviceId, mode, label, lastSeenMs }
@@ -94,7 +93,9 @@ export function subscribeSessionPresence(
         const p = parsePeer(d.id, d.data() as Record<string, unknown>)
         if (p && now - p.lastSeenMs < SESSION_PRESENCE_STALE_MS) list.push(p)
       }
-      list.sort((a, b) => a.label.localeCompare(b.label, 'es') || a.deviceId.localeCompare(b.deviceId))
+      list.sort(
+        (a, b) => a.label.localeCompare(b.label, 'es') || a.deviceId.localeCompare(b.deviceId)
+      )
       onPeers(list)
     },
     () => {

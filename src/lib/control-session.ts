@@ -5,9 +5,7 @@ import { db } from '@/lib/firebase'
  * Sesión remota para sincronizar TV + móvil (mismo admin).
  * Ruta Firestore: crossfitconnect-app/nuevaVersion/controlSessions/{firebaseUID}
  */
-export const CONTROL_SESSION_COLLECTION = [
-  'controlSessions',
-] as const
+export const CONTROL_SESSION_COLLECTION = ['controlSessions'] as const
 
 /** Debe coincidir con los límites del dashboard. */
 export const SESSION_LINE_HEIGHT_MIN = 1
