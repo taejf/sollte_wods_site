@@ -2,7 +2,15 @@
 
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { checkIsAdmin, logoutUser, onAuthChange } from '@/lib/auth'
 import {
   clampSessionCurrentIndex,
@@ -20,7 +28,7 @@ const labelStripStyle: React.CSSProperties = {
 /** Título único encima de dos columnas (METCON / STRENGTH duales). */
 function DualColumnSectionHeader({ label }: { label: string }) {
   return (
-    <h2 className="m-0 w-full shrink-0 rounded-lg border border-[#c4c4c4] dark:border-gray-600 bg-black px-3 py-2 text-center text-base font-bold uppercase tracking-wider text-white sm:px-4 sm:py-2.5 sm:text-lg md:py-3 md:text-xl lg:text-2xl">
+    <h2 className="m-0 w-full shrink-0 rounded-lg border border-[#c4c4c4] dark:border-gray-600 bg-black px-3 py-2 text-center text-xl font-bold uppercase tracking-wider text-white sm:px-4 sm:py-3 sm:text-2xl md:py-4 md:text-4xl lg:py-5 lg:text-6xl">
       {label}
     </h2>
   )
@@ -228,13 +236,37 @@ const EMPHASIS_TOKEN_TEXT = 'text-[#F8F400]'
 const LINE_HIGHLIGHT_TOKEN_REGEX =
   /\bRPE\s*\d+(?:\s*-\s*\d+)?\b|\d+(?:[.,]\d+)?%|(?<![A-Za-z])\d+(?:[xX:/+-]\d+)*(?:[%xX:/+-]|:)?(?:["”])?(?![A-Za-z])/gi
 
-function renderStyledLineText(
-  line: string,
-  opts?: {
-    highlightTokens?: boolean
+/**
+ * Parte la línea tras "+ " solo si va seguido de un dígito y el "+" está fuera de paréntesis
+ * (p. ej. "5 pull + 5 Muscle"; no "medball + disco"; no "(1 clean + 1 jerk)" dentro del complejo).
+ */
+function splitExerciseLineAtPlusNumberOutsideParens(line: string): string[] {
+  const segments: string[] = []
+  let chunkStart = 0
+  let depth = 0
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i]
+    if (c === '(') depth++
+    else if (c === ')') depth = Math.max(0, depth - 1)
+
+    if (
+      depth === 0 &&
+      c === '+' &&
+      line[i + 1] === ' ' &&
+      line[i + 2] !== undefined &&
+      /\d/.test(line[i + 2])
+    ) {
+      const splitAfter = i + 2
+      segments.push(line.slice(chunkStart, splitAfter))
+      chunkStart = splitAfter
+      i = splitAfter - 1
+    }
   }
-): React.ReactNode {
-  if (opts?.highlightTokens === false) return line
+  segments.push(line.slice(chunkStart))
+  return segments
+}
+
+function renderLineHighlightTokens(line: string): React.ReactNode {
   const parts: React.ReactNode[] = []
   let cursor = 0
 
@@ -262,6 +294,36 @@ function renderStyledLineText(
   }
 
   return <>{parts.length > 0 ? parts : line}</>
+}
+
+function renderStyledLineText(
+  line: string,
+  opts?: {
+    highlightTokens?: boolean
+  }
+): React.ReactNode {
+  const segments = splitExerciseLineAtPlusNumberOutsideParens(line)
+  if (segments.length <= 1) {
+    return opts?.highlightTokens === false ? line : renderLineHighlightTokens(line)
+  }
+  let segmentStart = 0
+  let isFirstSegment = true
+  return (
+    <>
+      {segments.map((seg) => {
+        const key = `${segmentStart}:${seg.length}:${line.length}`
+        segmentStart += seg.length
+        const showBreak = !isFirstSegment
+        isFirstSegment = false
+        return (
+          <Fragment key={key}>
+            {showBreak ? <br /> : null}
+            {opts?.highlightTokens === false ? seg : renderLineHighlightTokens(seg)}
+          </Fragment>
+        )
+      })}
+    </>
+  )
 }
 
 const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
