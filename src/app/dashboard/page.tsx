@@ -11,12 +11,24 @@ import {
   useRef,
   useState,
 } from 'react'
-import { checkIsAdmin, logoutUser, onAuthChange } from '@/lib/auth'
+import {
+  checkIsAdmin,
+  consumeExplicitLogoutIntent,
+  logoutUser,
+  markExplicitLogoutIntent,
+  onAuthChange,
+} from '@/lib/auth'
 import {
   clampSessionCurrentIndex,
   subscribeControlSession,
   updateControlSession,
 } from '@/lib/controlSession'
+import {
+  getOrCreateSessionDeviceId,
+  registerSessionPresenceHeartbeat,
+  subscribeSessionPresence,
+  type SessionPresencePeer,
+} from '@/lib/controlSessionPresence'
 import type { WodDoc, WodsApiResponse } from '@/lib/wod'
 
 const labelStripStyle: React.CSSProperties = {
@@ -25,10 +37,21 @@ const labelStripStyle: React.CSSProperties = {
   transform: 'rotate(180deg)',
 }
 
+/** Superficie e icono compartidos: flechas carrusel TV y modo control (mismo aspecto). */
+const carouselArrowButtonSurfaceClassName =
+  'rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200'
+
+const carouselArrowIconClassNameTv =
+  'w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20'
+
+/** Icono proporcional al carril estrecho del panel modo control. */
+const carouselArrowIconClassNameControl =
+  'w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-14 lg:h-14'
+
 /** Título único encima de dos columnas (METCON / STRENGTH duales). */
 function DualColumnSectionHeader({ label }: { label: string }) {
   return (
-    <h2 className="m-0 w-full shrink-0 rounded-lg border border-[#c4c4c4] dark:border-gray-600 bg-black px-3 py-2 text-center text-xl font-bold uppercase tracking-wider text-white sm:px-4 sm:py-3 sm:text-2xl md:py-4 md:text-4xl lg:py-5 lg:text-6xl">
+    <h2 className="m-0 w-full shrink-0 rounded-xl border border-white/15 bg-gradient-to-b from-[#2f2f2f] via-black to-[#0c0c0c] px-3 py-2 text-center text-xl font-bold uppercase tracking-wider text-white shadow-[inset_0_2px_0_0_rgba(255,255,255,0.14),inset_0_-4px_12px_rgba(0,0,0,0.45),0_8px_24px_-6px_rgba(0,0,0,0.5)] dark:border-white/10 sm:px-4 sm:py-3 sm:text-2xl md:py-4 md:text-4xl lg:py-5 lg:text-6xl">
       {label}
     </h2>
   )
@@ -151,7 +174,11 @@ function exerciseGridItemBottomBorderClasses(
   const subtitlePad = 'pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const subtitlePadCompactFirst = '-mt-0.5 pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const beforeNotePad = 'pt-2 pb-0.5 sm:pt-3 sm:pb-1 min-w-0 break-words'
-  const b = 'border-b-2 border-b-[#d0d0d0] dark:border-b-gray-500'
+  /** Surco con relieve: sombra interior + filo claro (modo claro / oscuro). */
+  const b =
+    'border-b-0 ' +
+    'shadow-[inset_0_-2px_0_0_rgba(15,23,42,0.13),inset_0_-1px_0_0_rgba(255,255,255,0.52)] ' +
+    'dark:shadow-[inset_0_-2px_0_0_rgba(0,0,0,0.68),inset_0_-1px_0_0_rgba(255,255,255,0.07)]'
   const isCurrentSubtitle = !!item && isSubtitleLine(item, ctx)
   const isCurrentSpecial =
     !!item && (isSpecialStyledLine(item) || (ctx?.isFirstItem && isForTimeLine(item)))
@@ -326,9 +353,18 @@ function renderStyledLineText(
   )
 }
 
-const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
-const COL_BORDER_XL = 'xl:border-l-2 xl:border-l-[#d0d0d0] xl:dark:border-l-gray-500 xl:pl-3'
-const COL_BORDER_SM = 'sm:border-l-2 sm:border-l-[#d0d0d0] sm:dark:border-l-gray-500 sm:pl-3'
+const COL_BORDER_MD =
+  'md:border-l md:border-l-[#9ca3b0] md:dark:border-l-[#3a424c] md:pl-3 ' +
+  'md:shadow-[inset_2px_0_0_0_rgba(15,23,42,0.11),inset_1px_0_0_0_rgba(255,255,255,0.48)] ' +
+  'md:dark:shadow-[inset_2px_0_0_0_rgba(0,0,0,0.65),inset_1px_0_0_0_rgba(255,255,255,0.06)]'
+const COL_BORDER_XL =
+  'xl:border-l xl:border-l-[#9ca3b0] xl:dark:border-l-[#3a424c] xl:pl-3 ' +
+  'xl:shadow-[inset_2px_0_0_0_rgba(15,23,42,0.11),inset_1px_0_0_0_rgba(255,255,255,0.48)] ' +
+  'xl:dark:shadow-[inset_2px_0_0_0_rgba(0,0,0,0.65),inset_1px_0_0_0_rgba(255,255,255,0.06)]'
+const COL_BORDER_SM =
+  'sm:border-l sm:border-l-[#9ca3b0] sm:dark:border-l-[#3a424c] sm:pl-3 ' +
+  'sm:shadow-[inset_2px_0_0_0_rgba(15,23,42,0.11),inset_1px_0_0_0_rgba(255,255,255,0.48)] ' +
+  'sm:dark:shadow-[inset_2px_0_0_0_rgba(0,0,0,0.65),inset_1px_0_0_0_rgba(255,255,255,0.06)]'
 
 function ExerciseColumnItems({
   items,
@@ -536,6 +572,38 @@ const STORAGE_KEY_DISPLAY_MODE = 'dashboard-display-mode'
 
 type DashboardDisplayMode = 'tv' | 'control'
 
+/** Tarjetas de contenido (WOD): volumen con gradiente de luz + sombras en capas (especialmente visibles en TV / oscuro). */
+const dashboardSectionCardClassName =
+  'rounded-xl sm:rounded-2xl border border-[#9a9aa8]/90 dark:border-gray-400/30 ' +
+  'bg-gradient-to-br from-white via-[#fafbfc] to-[#e6e8ed] ' +
+  'dark:bg-gradient-to-br dark:from-[#4a4a4a] dark:via-[#383838] dark:to-[#262626] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.75),inset_0_-2px_4px_rgba(15,23,42,0.04),0_2px_4px_-1px_rgba(15,23,42,0.07),0_10px_22px_-6px_rgba(15,23,42,0.11),0_22px_48px_-14px_rgba(15,23,42,0.13)] ' +
+  'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.16),inset_0_-6px_14px_rgba(0,0,0,0.42),0_6px_12px_-2px_rgba(0,0,0,0.55),0_16px_36px_-8px_rgba(0,0,0,0.62),0_32px_64px_-16px_rgba(0,0,0,0.5)]'
+
+/** Franja vertical (WARM UP, METCON…): bisel y separación respecto al cuerpo de la tarjeta. */
+const dashboardSectionLabelStripClassName =
+  'bg-gradient-to-b from-[#2a2a2a] via-black to-[#0a0a0a] ' +
+  'border-r border-white/[0.1] dark:border-white/[0.05] ' +
+  'shadow-[inset_2px_0_6px_rgba(255,255,255,0.1),inset_-6px_0_16px_rgba(0,0,0,0.55)]'
+
+const dashboardControlMainCardClassName = dashboardSectionCardClassName
+  .replace('rounded-xl sm:rounded-2xl', 'rounded-2xl')
+
+/** Paneles flotantes del modo control: relieve acorde a las tarjetas de sección. */
+const dashboardControlPanel3dClassName =
+  'rounded-xl border border-gray-200/90 dark:border-gray-400/30 ' +
+  'bg-gradient-to-br from-white via-[#fafbfc] to-[#e8eaef] ' +
+  'dark:bg-gradient-to-br dark:from-[#454545] dark:via-[#3a3a3a] dark:to-[#2c2c2c] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.7),0_2px_6px_-1px_rgba(15,23,42,0.08),0_12px_28px_-8px_rgba(15,23,42,0.12)] ' +
+  'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.12),inset_0_-4px_10px_rgba(0,0,0,0.35),0_6px_14px_-2px_rgba(0,0,0,0.5),0_18px_40px_-10px_rgba(0,0,0,0.48)]'
+
+const dashboardControlPanel3dBlueClassName =
+  'rounded-xl border border-blue-200/95 dark:border-blue-800/90 ' +
+  'bg-gradient-to-br from-white via-[#f8faff] to-[#e8ecf5] ' +
+  'dark:bg-gradient-to-br dark:from-[#404858] dark:via-[#353d4d] dark:to-[#2a3140] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.7),0_2px_6px_-1px_rgba(30,58,138,0.08),0_12px_28px_-8px_rgba(15,23,42,0.12)] ' +
+  'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.11),inset_0_-4px_10px_rgba(0,0,0,0.38),0_6px_14px_-2px_rgba(0,0,0,0.52),0_18px_40px_-10px_rgba(0,0,0,0.5)]'
+
 function nearlyEqualSessionNumber(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6
 }
@@ -584,7 +652,6 @@ function SectionSlide({
   const isWarmup = label.toUpperCase().startsWith('WARM')
   const isAccesorios = label.toUpperCase().startsWith('ACCESORIOS')
   const isFuerza = label === 'STRENGTH'
-  const labelBg = 'bg-black'
   const blocks = buildBlocks(restLines)
   const isEnduranceSection =
     isMetcon &&
@@ -593,18 +660,18 @@ function SectionSlide({
 
   return (
     <div
-      className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''} ${className}`}
+      className={`flex overflow-hidden ${dashboardSectionCardClassName} min-h-0 max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''} ${className}`}
     >
       {!hideVerticalLabel && (
         <div
-          className={`flex flex-shrink-0 self-stretch w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
+          className={`flex flex-shrink-0 self-stretch w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${dashboardSectionLabelStripClassName}`}
           style={labelStripStyle}
         >
           {label}
         </div>
       )}
       <div
-        className={`flex-1 min-h-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${hideVerticalLabel ? '' : `border-l ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}`}
+        className={`flex-1 min-h-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${hideVerticalLabel ? '' : `border-l ${isMetcon ? 'border-black dark:border-gray-800' : 'border-[#c8c8c8] dark:border-gray-800'}`}`}
         style={{ fontSize: `${fontSize}rem` }}
       >
         {restLines.length > 0 ? (
@@ -900,7 +967,9 @@ function DualSectionSlide({
       <DualColumnSectionHeader label={label} />
       <div className="flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3 md:gap-4">
       {crossfitItems.length > 0 && (
-        <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-lg border border-[#c4c4c4] bg-white dark:border-gray-600 dark:bg-[#3C3C3C]">
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden ${dashboardSectionCardClassName}`}
+        >
           <div
             className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
             style={{ fontSize: `${fontSize}rem` }}
@@ -935,7 +1004,9 @@ function DualSectionSlide({
         </div>
       )}
       {functionalItems.length > 0 && (
-        <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-lg border border-[#c4c4c4] bg-white dark:border-gray-600 dark:bg-[#3C3C3C]">
+        <div
+          className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden ${dashboardSectionCardClassName}`}
+        >
           <div
             className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
             style={{ fontSize: `${fontSize}rem` }}
@@ -1177,6 +1248,9 @@ export default function DashboardPage() {
   const [displayMode, setDisplayMode] = useState<DashboardDisplayMode>('tv')
   const [showLongContentHintModal, setShowLongContentHintModal] = useState(false)
   const [sessionUid, setSessionUid] = useState<string | null>(null)
+  const [sessionPresencePeers, setSessionPresencePeers] = useState<SessionPresencePeer[]>([])
+  const sessionDeviceIdRef = useRef('')
+  const displayModeRef = useRef<DashboardDisplayMode>('tv')
   const applyingRemoteRef = useRef(false)
   const controlNamesStripRef = useRef<HTMLDivElement>(null)
   const controlStripSkipSyncRef = useRef(false)
@@ -1193,6 +1267,7 @@ export default function DashboardPage() {
   })
   const lenRef = useRef(0)
   const useInfiniteRef = useRef(false)
+  const hadAuthenticatedSessionRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -1210,6 +1285,26 @@ export default function DashboardPage() {
       // ignore
     }
   }, [displayMode])
+
+  displayModeRef.current = displayMode
+
+  useEffect(() => {
+    if (!sessionUid) {
+      setSessionPresencePeers([])
+      return
+    }
+    return subscribeSessionPresence(sessionUid, setSessionPresencePeers)
+  }, [sessionUid])
+
+  useEffect(() => {
+    if (!sessionUid) return
+    sessionDeviceIdRef.current = getOrCreateSessionDeviceId()
+    return registerSessionPresenceHeartbeat(
+      sessionUid,
+      () => sessionDeviceIdRef.current,
+      () => displayModeRef.current
+    )
+  }, [sessionUid])
 
   useEffect(() => {
     try {
@@ -1381,7 +1476,14 @@ export default function DashboardPage() {
     const unsubscribe = onAuthChange(async (user) => {
       if (!user) {
         setSessionUid(null)
-        router.replace('/')
+        const explicitLogout = consumeExplicitLogoutIntent()
+        if (explicitLogout || !hadAuthenticatedSessionRef.current) {
+          router.replace('/')
+          return
+        }
+        setError(
+          'Se bloqueó un cierre de sesión no autorizado. Usa el botón "Cerrar sesión" para finalizar la sesión.'
+        )
         return
       }
       try {
@@ -1398,6 +1500,7 @@ export default function DashboardPage() {
         return
       }
 
+      hadAuthenticatedSessionRef.current = true
       setSessionUid(user.uid)
 
       try {
@@ -1607,9 +1710,11 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
+      markExplicitLogoutIntent()
       await logoutUser()
       router.replace('/')
     } catch {
+      consumeExplicitLogoutIntent()
       setError('Error al cerrar sesión')
     }
   }
@@ -1757,8 +1862,8 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
-      <header className="bg-white dark:bg-[#3C3C3C] py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
+    <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_32%,#e4ebf5_0%,#f0f2f6_38%,#f5f5f5_65%,#ebebeb_100%)] dark:bg-[radial-gradient(circle_at_50%_28%,#2d3544_0%,#22262e_40%,#1a1a1a_68%,#121212_100%)]">
+      <header className="sticky top-0 z-40 shrink-0 border-b border-white/50 py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 bg-gradient-to-b from-white/70 via-white/45 to-white/[0.28] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.85),0_10px_40px_-12px_rgba(15,23,42,0.18),0_1px_0_0_rgba(255,255,255,0.4)_inset] backdrop-blur-2xl backdrop-saturate-[1.75] dark:border-white/[0.12] dark:from-gray-800/55 dark:via-gray-900/38 dark:to-gray-950/25 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14),0_12px_48px_-16px_rgba(0,0,0,0.55)]">
         <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center w-full max-w-full sm:max-w-[900px] mx-auto gap-2 sm:gap-4 min-w-0">
           <div className="flex flex-col gap-2 order-2 sm:order-1 min-w-0">
             <p
@@ -1822,7 +1927,7 @@ export default function DashboardPage() {
         }`}
       >
         <fieldset
-          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
+          className={`flex flex-col gap-2 ${dashboardControlPanel3dClassName} px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]`}
           aria-label="Tamaño de tarjetas"
         >
           <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
@@ -1859,7 +1964,7 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
+          className={`flex flex-col gap-2 ${dashboardControlPanel3dClassName} px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]`}
           aria-label="Ajuste de interlineado"
         >
           <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
@@ -1896,7 +2001,7 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
+          className={`flex flex-col gap-2 ${dashboardControlPanel3dClassName} px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]`}
           aria-label="Tamaño de fuente"
         >
           <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
@@ -1933,7 +2038,7 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+          className={`flex flex-col gap-2 ${dashboardControlPanel3dBlueClassName} px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
           aria-label="Tamaño de tarjetas para metcon y strength extensos"
         >
           <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
@@ -1970,7 +2075,7 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+          className={`flex flex-col gap-2 ${dashboardControlPanel3dBlueClassName} px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
           aria-label="Interlineado para metcon y strength extensos"
         >
           <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
@@ -2007,7 +2112,7 @@ export default function DashboardPage() {
           </div>
         </fieldset>
         <fieldset
-          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+          className={`flex flex-col gap-2 ${dashboardControlPanel3dBlueClassName} px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
           aria-label="Tamaño de fuente para metcon y strength extensos"
         >
           <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
@@ -2047,23 +2152,25 @@ export default function DashboardPage() {
       )}
 
       <div
-        className={`fixed bottom-4 sm:bottom-6 z-50 flex flex-row-reverse items-center gap-2 sm:gap-3 transition-opacity duration-300 pointer-events-none ${
+        className={`fixed bottom-4 sm:bottom-6 z-50 flex flex-row-reverse items-center gap-3 sm:gap-4 transition-opacity duration-300 pointer-events-none ${
           displayMode === 'control' && useInfinite
-            ? 'right-28 sm:right-40'
-            : 'right-16 sm:right-24'
+            ? 'right-[13rem] sm:right-[15rem]'
+            : displayMode === 'control'
+              ? 'right-[8.5rem] sm:right-40'
+              : 'right-16 sm:right-24'
         } ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
       >
         {displayMode === 'control' && useInfinite && (
           <button
             type="button"
             onClick={() => setIsPaused((p) => !p)}
-            className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+            className="flex shrink-0 items-center justify-center h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
             aria-label={isPaused ? 'Reanudar carrusel en TV' : 'Pausar carrusel en TV'}
             aria-pressed={isPaused}
           >
             {isPaused ? (
               <svg
-                className="w-5 h-5 sm:w-6 sm:h-6"
+                className="h-7 w-7 sm:h-8 sm:w-8"
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 aria-hidden
@@ -2072,7 +2179,7 @@ export default function DashboardPage() {
               </svg>
             ) : (
               <svg
-                className="w-5 h-5 sm:w-6 sm:h-6"
+                className="h-7 w-7 sm:h-8 sm:w-8"
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 aria-hidden
@@ -2085,7 +2192,11 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setDisplayMode((m) => (m === 'tv' ? 'control' : 'tv'))}
-          className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+          className={`flex shrink-0 items-center justify-center rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 ${
+            displayMode === 'control'
+              ? 'h-14 w-14 sm:h-16 sm:w-16'
+              : 'h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14'
+          }`}
           aria-label={
             displayMode === 'tv' ? 'Cambiar a modo control (móvil)' : 'Cambiar a modo TV'
           }
@@ -2093,7 +2204,7 @@ export default function DashboardPage() {
         >
           {displayMode === 'tv' ? (
             <svg
-              className="w-5 h-5 sm:w-6 sm:h-6"
+              className="h-5 w-5 sm:h-6 sm:w-6"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -2107,7 +2218,7 @@ export default function DashboardPage() {
             </svg>
           ) : (
             <svg
-              className="w-5 h-5 sm:w-6 sm:h-6"
+              className="h-7 w-7 sm:h-8 sm:w-8"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -2127,13 +2238,15 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={handleLogout}
-        className={`fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
-          controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'
-        }`}
+        className={`fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center justify-center rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
+          displayMode === 'control'
+            ? 'h-14 w-14 sm:h-16 sm:w-16'
+            : 'h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14'
+        } ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
         aria-label="Cerrar sesión"
       >
         <svg
-          className="w-5 h-5 sm:w-6 sm:h-6"
+          className={displayMode === 'control' ? 'h-7 w-7 sm:h-8 sm:w-8' : 'h-5 w-5 sm:h-6 sm:w-6'}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -2199,7 +2312,7 @@ export default function DashboardPage() {
           {!loading && !error && (
             <>
               {displayMode === 'control' && (
-                <div className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto p-4 pb-28 sm:p-6 sm:pb-32">
+                <div className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto p-4 pb-36 sm:p-6 sm:pb-40">
                   {showLongContentHintModal && (
                     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4">
                       <div className="w-full max-w-md rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl dark:border-blue-800 dark:bg-[#2f2f2f]">
@@ -2226,7 +2339,9 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-                  <div className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-2xl border border-[#d0d0d0] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] p-4 sm:p-5 shadow-sm">
+                  <div
+                    className={`mx-auto w-full max-w-md flex flex-col gap-4 p-4 sm:p-5 ${dashboardControlMainCardClassName}`}
+                  >
                     <div>
                       <h2 className="text-lg font-bold text-[#333] dark:text-gray-100">Modo control</h2>
                       <p className="mt-1 text-xs text-[#666] dark:text-gray-400">
@@ -2245,16 +2360,16 @@ export default function DashboardPage() {
                           </div>
                         ) : (
                           <>
-                            <div className="flex min-h-[5.5rem] items-stretch gap-1 px-1 py-1 sm:gap-1.5 sm:px-1.5">
+                            <div className="flex min-h-[5.5rem] items-stretch gap-1 px-1 py-1 sm:min-h-[5.5rem] sm:gap-1.5 sm:px-1.5">
                               <button
                                 type="button"
                                 onClick={goPrev}
                                 disabled={!useInfinite}
-                                className="flex w-9 shrink-0 items-center justify-center self-center rounded-lg bg-[#4A90E2] text-white shadow-sm hover:bg-[#3A7BC8] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:w-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2a2a2a]"
+                                className={`flex w-12 shrink-0 items-center justify-center self-stretch sm:w-14 md:w-16 ${carouselArrowButtonSurfaceClassName} disabled:pointer-events-none disabled:opacity-35`}
                                 aria-label="Sección anterior"
                               >
                                 <svg
-                                  className="h-6 w-6"
+                                  className={carouselArrowIconClassNameControl}
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   stroke="currentColor"
@@ -2293,11 +2408,11 @@ export default function DashboardPage() {
                                 type="button"
                                 onClick={goNext}
                                 disabled={!useInfinite}
-                                className="flex w-9 shrink-0 items-center justify-center self-center rounded-lg bg-[#4A90E2] text-white shadow-sm hover:bg-[#3A7BC8] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:w-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2a2a2a]"
+                                className={`flex w-12 shrink-0 items-center justify-center self-stretch sm:w-14 md:w-16 ${carouselArrowButtonSurfaceClassName} disabled:pointer-events-none disabled:opacity-35`}
                                 aria-label="Sección siguiente"
                               >
                                 <svg
-                                  className="h-6 w-6"
+                                  className={carouselArrowIconClassNameControl}
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   stroke="currentColor"
@@ -2318,10 +2433,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <details className="group rounded-xl border border-gray-200 dark:border-gray-600 bg-white/50 dark:bg-[#353535]/80 open:border-[#4A90E2]/40 dark:open:border-[#60a5fa]/35">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-[#333] dark:text-gray-200 [&::-webkit-details-marker]:hidden">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-4 text-base font-semibold text-[#333] dark:text-gray-200 [&::-webkit-details-marker]:hidden">
                         <span>Parámetros de pantalla</span>
                         <svg
-                          className="h-5 w-5 shrink-0 text-[#4A90E2] transition-transform duration-200 group-open:rotate-180 dark:text-[#60a5fa]"
+                          className="h-7 w-7 shrink-0 text-[#4A90E2] transition-transform duration-200 group-open:rotate-180 dark:text-[#60a5fa]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -2333,12 +2448,12 @@ export default function DashboardPage() {
                           <polyline points="6 9 12 15 18 9" />
                         </svg>
                       </summary>
-                      <div className="flex flex-col gap-3 border-t border-gray-200 px-2 pb-3 pt-2 dark:border-gray-600">
-                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                      <div className="flex flex-col gap-4 border-t border-gray-200 px-2 pb-4 pt-3 dark:border-gray-600">
+                        <fieldset className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-4 sm:py-4">
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Tamaño tarjetas
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
@@ -2346,12 +2461,12 @@ export default function DashboardPage() {
                                   Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de tarjetas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {cardScale.toFixed(2)}
                             </span>
                             <button
@@ -2361,18 +2476,18 @@ export default function DashboardPage() {
                                   Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de tarjetas"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-4 sm:py-4">
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Interlineado
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
@@ -2380,12 +2495,12 @@ export default function DashboardPage() {
                                   Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir interlineado"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {lineHeightList.toFixed(1)}
                             </span>
                             <button
@@ -2395,18 +2510,18 @@ export default function DashboardPage() {
                                   Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar interlineado"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-4 sm:py-4">
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Tamaño fuente
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
@@ -2414,12 +2529,12 @@ export default function DashboardPage() {
                                   Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de fuente"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {fontSizeScale.toFixed(2)}
                             </span>
                             <button
@@ -2429,18 +2544,18 @@ export default function DashboardPage() {
                                   Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de fuente"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className={`flex flex-col gap-3 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Tarjetas largas Met/Str
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
@@ -2448,12 +2563,12 @@ export default function DashboardPage() {
                                   Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de tarjetas largas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {denseCardScale.toFixed(2)}
                             </span>
                             <button
@@ -2463,18 +2578,18 @@ export default function DashboardPage() {
                                   Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de tarjetas largas"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className={`flex flex-col gap-3 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Interlineado largas Met/Str
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
@@ -2482,12 +2597,12 @@ export default function DashboardPage() {
                                   Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir interlineado largas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {denseLineHeight.toFixed(1)}
                             </span>
                             <button
@@ -2497,18 +2612,18 @@ export default function DashboardPage() {
                                   Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar interlineado largas"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className={`flex flex-col gap-3 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Fuente largas Met/Str
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
@@ -2516,12 +2631,12 @@ export default function DashboardPage() {
                                   Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de fuente largas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {denseFontSize.toFixed(2)}
                             </span>
                             <button
@@ -2531,7 +2646,7 @@ export default function DashboardPage() {
                                   Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de fuente largas"
                             >
                               +
@@ -2579,13 +2694,13 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={goPrev}
-                        className={`absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-28 h-56 sm:w-32 sm:h-64 md:w-40 md:h-80 rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200 ${
-                          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                        className={`absolute left-1 top-1/2 z-10 flex h-56 w-28 -translate-y-1/2 items-center justify-center sm:left-2 sm:h-64 sm:w-32 md:h-80 md:w-40 ${carouselArrowButtonSurfaceClassName} ${
+                          showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
                         }`}
                         aria-label="Sección anterior"
                       >
                         <svg
-                          className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20"
+                          className={carouselArrowIconClassNameTv}
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -2600,13 +2715,13 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={goNext}
-                        className={`absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-28 h-56 sm:w-32 sm:h-64 md:w-40 md:h-80 rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200 ${
-                          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                        className={`absolute right-1 top-1/2 z-10 flex h-56 w-28 -translate-y-1/2 items-center justify-center sm:right-2 sm:h-64 sm:w-32 md:h-80 md:w-40 ${carouselArrowButtonSurfaceClassName} ${
+                          showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
                         }`}
                         aria-label="Sección siguiente"
                       >
                         <svg
-                          className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20"
+                          className={carouselArrowIconClassNameTv}
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -2911,6 +3026,41 @@ export default function DashboardPage() {
           )}
         </main>
       </div>
+
+      {sessionUid ? (
+        <aside
+          aria-live="polite"
+          aria-label="Dispositivos en la sesión de control"
+          className={`pointer-events-none fixed left-3 z-[55] max-w-[min(18rem,calc(100vw-1.5rem))] rounded-xl border border-gray-600/90 bg-[#2a2a2a]/95 px-3 py-2 text-left shadow-lg shadow-black/40 backdrop-blur-md transition-opacity duration-300 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0'
+          } ${
+            displayMode === 'tv' && showControls ? 'bottom-28 sm:bottom-32' : 'bottom-3 sm:bottom-4'
+          }`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Sesión en vivo
+          </p>
+          <p className="mt-0.5 text-sm font-bold tabular-nums text-gray-100">
+            {sessionPresencePeers.length}{' '}
+            {sessionPresencePeers.length === 1 ? 'dispositivo' : 'dispositivos'}
+          </p>
+          {sessionPresencePeers.length > 0 ? (
+            <ul className="mt-1.5 space-y-1 border-t border-gray-600/80 pt-1.5 text-xs text-gray-300">
+              {sessionPresencePeers.map((p) => (
+                <li key={p.deviceId} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                  <span className="font-medium text-gray-100">{p.label}</span>
+                  <span className="text-gray-500">·</span>
+                  <span className="text-gray-400">
+                    {p.mode === 'tv' ? 'Modo TV' : 'Modo control'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">Esperando señal…</p>
+          )}
+        </aside>
+      ) : null}
     </div>
   )
 }

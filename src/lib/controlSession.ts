@@ -30,7 +30,8 @@ export type ControlSessionState = {
   denseFontSize: number
 }
 
-function controlSessionDocRef(uid: string) {
+/** Documento raíz de la sesión de control (estado + subcolección `presence`). */
+export function controlSessionDocRef(uid: string) {
   return doc(db, ...CONTROL_SESSION_COLLECTION, uid)
 }
 
