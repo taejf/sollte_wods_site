@@ -31,12 +31,6 @@ import {
 } from '@/lib/controlSessionPresence'
 import type { WodDoc, WodsApiResponse } from '@/lib/wod'
 
-const labelStripStyle: React.CSSProperties = {
-  writingMode: 'vertical-rl',
-  textOrientation: 'mixed',
-  transform: 'rotate(180deg)',
-}
-
 /** Superficie e icono compartidos: flechas carrusel TV y modo control (mismo aspecto). */
 const carouselArrowButtonSurfaceClassName =
   'rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200'
@@ -51,7 +45,7 @@ const carouselArrowIconClassNameControl =
 /** Título único encima de dos columnas (METCON / STRENGTH duales). */
 function DualColumnSectionHeader({ label }: { label: string }) {
   return (
-    <h2 className="m-0 w-full shrink-0 rounded-xl border border-white/15 bg-gradient-to-b from-[#2f2f2f] via-black to-[#0c0c0c] px-3 py-2 text-center text-xl font-bold uppercase tracking-wider text-white shadow-[inset_0_2px_0_0_rgba(255,255,255,0.14),inset_0_-4px_12px_rgba(0,0,0,0.45),0_8px_24px_-6px_rgba(0,0,0,0.5)] dark:border-white/10 sm:px-4 sm:py-3 sm:text-2xl md:py-4 md:text-4xl lg:py-5 lg:text-6xl">
+    <h2 className="m-0 w-full shrink-0 p-0 text-center text-2xl font-bold uppercase tracking-wider text-transparent [-webkit-text-stroke:1.5px_#42FFFF] [text-shadow:0_0_6px_rgba(66,255,255,0.75),0_0_14px_rgba(66,255,255,0.5),0_0_26px_rgba(66,255,255,0.3)] sm:text-3xl md:text-5xl lg:text-7xl">
       {label}
     </h2>
   )
@@ -287,6 +281,20 @@ function splitExerciseLineAtPlusNumberOutsideParens(line: string): string[] {
       segments.push(line.slice(chunkStart, splitAfter))
       chunkStart = splitAfter
       i = splitAfter - 1
+      continue
+    }
+
+    // Si aparece un porcentaje en mitad de la línea, lo pasamos al siguiente renglón.
+    // Ejemplo: "... Split jerk) 60% Rm ..." -> salto antes de "60%".
+    if (
+      depth === 0 &&
+      i > chunkStart &&
+      /\d/.test(c) &&
+      line[i - 1] === ' ' &&
+      /^\d+(?:[.,]\d+)?%(?=\s)/.test(line.slice(i))
+    ) {
+      segments.push(line.slice(chunkStart, i))
+      chunkStart = i
     }
   }
   segments.push(line.slice(chunkStart))
@@ -424,7 +432,7 @@ function ExerciseMultiColumnGrid({
           return (
             <li
               key={`${item}-${occ}`}
-              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
               {renderStyledLineText(item, {
@@ -580,12 +588,6 @@ const dashboardSectionCardClassName =
   'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.75),inset_0_-2px_4px_rgba(15,23,42,0.04),0_2px_4px_-1px_rgba(15,23,42,0.07),0_10px_22px_-6px_rgba(15,23,42,0.11),0_22px_48px_-14px_rgba(15,23,42,0.13)] ' +
   'dark:shadow-[inset_0_2px_0_0_rgba(255,255,255,0.16),inset_0_-6px_14px_rgba(0,0,0,0.42),0_6px_12px_-2px_rgba(0,0,0,0.55),0_16px_36px_-8px_rgba(0,0,0,0.62),0_32px_64px_-16px_rgba(0,0,0,0.5)]'
 
-/** Franja vertical (WARM UP, METCON…): bisel y separación respecto al cuerpo de la tarjeta. */
-const dashboardSectionLabelStripClassName =
-  'bg-gradient-to-b from-[#2a2a2a] via-black to-[#0a0a0a] ' +
-  'border-r border-white/[0.1] dark:border-white/[0.05] ' +
-  'shadow-[inset_2px_0_6px_rgba(255,255,255,0.1),inset_-6px_0_16px_rgba(0,0,0,0.55)]'
-
 const dashboardControlMainCardClassName = dashboardSectionCardClassName
   .replace('rounded-xl sm:rounded-2xl', 'rounded-2xl')
 
@@ -653,32 +655,55 @@ function SectionSlide({
   const isAccesorios = label.toUpperCase().startsWith('ACCESORIOS')
   const isFuerza = label === 'STRENGTH'
   const blocks = buildBlocks(restLines)
+  const hasEnduranceKeyword = items.some((line) => /\bEndurance\b/i.test(line))
+  const hasEnduranceKeywordInMetcon = isMetcon && items.some((line) => /\bEndurance\b/i.test(line))
   const isEnduranceSection =
     isMetcon &&
     (/\bEndurance\b/i.test(firstLine) ||
       (blocks.length === 1 && blocks[0].title === BLOCK_TITLE_ENDURANCE))
+  const shouldFlattenSingleTrackMetcon =
+    isMetcon && !hasEnduranceKeywordInMetcon && blocks.length === 1 && blocks[0]?.title == null
+  const headerToContentSpacingClass = hideVerticalLabel
+    ? ''
+    : isWarmup
+      ? 'mt-1 sm:mt-1.5 md:mt-2'
+      : 'mt-2 sm:mt-3 md:mt-4'
+  const contentPaddingClass = isWarmup
+    ? 'px-4 pb-4 pt-0.5 sm:px-5 sm:pb-5 sm:pt-1 md:px-6 md:pb-6 md:pt-1.5 lg:px-8 lg:pb-8 lg:pt-2'
+    : 'p-4 sm:p-5 md:p-6 lg:p-8'
+  const accesoriosBlock = blocks.find((b) => /^accesorios:?$/i.test((b.title ?? '').trim()))
+  const shouldUseAccesoriosDualByTitle =
+    isAccesorios && !hasEnduranceKeyword && /^conditioning\b/i.test(firstLine) && !!accesoriosBlock
+  const shouldFlattenAccesoriosSingleTrack =
+    isAccesorios && !shouldUseAccesoriosDualByTitle
+  const accesoriosSingleTrackLines = shouldFlattenAccesoriosSingleTrack
+    ? items.filter((line, idx) => !(idx === 0 && /^accesorios:?$/i.test(line.trim())))
+    : []
+  const conditioningLinesForAccesoriosDual = shouldUseAccesoriosDualByTitle
+    ? blocks
+        .filter((b) => !/^accesorios:?$/i.test((b.title ?? '').trim()))
+        .flatMap((b) => b.lines)
+    : []
+  const accesoriosLinesForAccesoriosDual = shouldUseAccesoriosDualByTitle
+    ? (accesoriosBlock?.lines ?? [])
+    : []
 
   return (
     <div
-      className={`flex overflow-hidden ${dashboardSectionCardClassName} min-h-0 max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''} ${className}`}
+      className={`flex flex-col overflow-hidden min-h-0 h-full ${hideVerticalLabel ? 'max-w-none mx-0' : `max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''}`} ${className}`}
     >
       {!hideVerticalLabel && (
-        <div
-          className={`flex flex-shrink-0 self-stretch w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${dashboardSectionLabelStripClassName}`}
-          style={labelStripStyle}
-        >
-          {label}
-        </div>
+        <DualColumnSectionHeader label={label} />
       )}
       <div
-        className={`flex-1 min-h-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${hideVerticalLabel ? '' : `border-l ${isMetcon ? 'border-black dark:border-gray-800' : 'border-[#c8c8c8] dark:border-gray-800'}`}`}
+        className={`flex-1 min-h-0 ${contentPaddingClass} overflow-y-auto flex flex-col ${headerToContentSpacingClass}`}
         style={{ fontSize: `${fontSize}rem` }}
       >
         {restLines.length > 0 ? (
           <>
-            {!isMetcon && (
+            {!isMetcon && !shouldUseAccesoriosDualByTitle && !shouldFlattenAccesoriosSingleTrack && (
               <p
-                className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                   isAccesorios ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
                 }`}
               >
@@ -690,7 +715,7 @@ function SectionSlide({
                 {isEnduranceSection ? (
                   <div className="mb-2 sm:mb-3 md:mb-4">
                     <p
-                      className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                      className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                         restLines[0] && isSubtitleLine(restLines[0], { isFirstItem: true })
                           ? 'mb-0 leading-tight'
                           : ''
@@ -699,7 +724,7 @@ function SectionSlide({
                       {firstLine}
                     </p>
                     {restLines[0] && (
-                      <p className="text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium">
+                      <p className={`text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium ${hideVerticalLabel ? '' : 'text-center'}`}>
                         {restLines[0]}
                       </p>
                     )}
@@ -715,6 +740,7 @@ function SectionSlide({
                           ? block.lines[0]
                           : firstLine
                     if (block.title === 'Crossfit' || block.title === null) {
+                      if (shouldFlattenSingleTrackMetcon) return null
                       const hasSubtitleTitleLine = isSubtitleLine(firstLine, { isFirstItem: true })
                       return (
                         <div
@@ -722,13 +748,13 @@ function SectionSlide({
                           className="mb-2 sm:mb-3 md:mb-4"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                               hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
                             }`}
                           >
                             Crossfit
                           </p>
-                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight">
+                          <p className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}>
                             {firstLine}
                           </p>
                         </div>
@@ -742,13 +768,13 @@ function SectionSlide({
                           className="mb-2 sm:mb-3 md:mb-4"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                               hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
                             }`}
                           >
                             Sollte funcional
                           </p>
-                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight">
+                          <p className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}>
                             {titleLine}
                           </p>
                         </div>
@@ -760,7 +786,7 @@ function SectionSlide({
                           key={`${block.title ?? BLOCK_TITLE_ENDURANCE}-${titleLine}`}
                           className="mb-2 sm:mb-3 md:mb-4"
                         >
-                          <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+                          <p className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}>
                             {titleLine}
                           </p>
                         </div>
@@ -770,7 +796,7 @@ function SectionSlide({
                       return (
                         <p
                           key={`${block.title}-${block.lines.join('|')}`}
-                          className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2"
+                          className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2 ${hideVerticalLabel ? '' : 'text-center'}`}
                         >
                           {block.title}
                         </p>
@@ -782,6 +808,8 @@ function SectionSlide({
                 {(() => {
                   const allListLines = isEnduranceSection
                     ? restLines.slice(1)
+                    : shouldFlattenSingleTrackMetcon
+                      ? items
                     : blocks.flatMap((block) => {
                         const isSollteBlock = block.title === 'Sollte funcional'
                         const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
@@ -829,7 +857,7 @@ function SectionSlide({
                             return (
                               <li
                                 key={`${item}-${occ}`}
-                                className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
+                                className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${hideVerticalLabel ? '' : 'text-center'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
                                 style={{ lineHeight: lineHeight }}
                               >
                                 {renderStyledLineText(item, {
@@ -847,10 +875,55 @@ function SectionSlide({
                       items={allListLines}
                       layout={gridLayout}
                       lineHeight={lineHeight}
+                      extraLiClass={isEnduranceSection ? () => 'text-center' : undefined}
                     />
                   )
                 })()}
               </>
+            ) : shouldFlattenAccesoriosSingleTrack ? (
+              <ExerciseMultiColumnGrid
+                items={accesoriosSingleTrackLines}
+                layout={
+                  hasEnduranceKeyword
+                    ? 'single'
+                    : getExerciseGridLayout(accesoriosSingleTrackLines.length, {
+                  isEnduranceSection: false,
+                  isFuerza,
+                  isWarmup: false,
+                })
+                }
+                lineHeight={lineHeight}
+                compactFirstItemTopSpacing
+              />
+            ) : shouldUseAccesoriosDualByTitle ? (
+              <div className="mt-2 sm:mt-3 md:mt-4 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8">
+                <div className="min-w-0">
+                  <p className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}>
+                    {firstLine}
+                  </p>
+                  {conditioningLinesForAccesoriosDual.length > 0 && (
+                    <ExerciseMultiColumnGrid
+                      items={conditioningLinesForAccesoriosDual}
+                      layout="single"
+                      lineHeight={lineHeight}
+                      compactFirstItemTopSpacing
+                    />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}>
+                    Accesorios
+                  </p>
+                  {accesoriosLinesForAccesoriosDual.length > 0 && (
+                    <ExerciseMultiColumnGrid
+                      items={accesoriosLinesForAccesoriosDual}
+                      layout="single"
+                      lineHeight={lineHeight}
+                      compactFirstItemTopSpacing
+                    />
+                  )}
+                </div>
+              </div>
             ) : (
               blocks.map((block, bi) => {
                 const listLines = block.lines
@@ -921,7 +994,7 @@ function SectionSlide({
             )}
           </>
         ) : (
-          <p className="text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+          <p className={`text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}>
             {firstLine}
           </p>
         )}
@@ -962,20 +1035,20 @@ function DualSectionSlide({
 
   return (
     <div
-      className={`mx-auto flex w-full max-w-[96%] min-h-0 flex-col gap-2 sm:gap-3 md:gap-4 ${className}`}
+      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-2 sm:gap-3 md:gap-4 ${className}`}
     >
       <DualColumnSectionHeader label={label} />
-      <div className="flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3 md:gap-4">
+      <div className="flex min-h-0 flex-1 items-stretch gap-3 sm:gap-4 md:gap-6">
       {crossfitItems.length > 0 && (
         <div
-          className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden ${dashboardSectionCardClassName}`}
+          className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}
         >
           <div
-            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+            className="flex min-h-0 flex-1 flex-col justify-start p-4 sm:p-5 md:p-6 lg:p-8"
             style={{ fontSize: `${fontSize}rem` }}
           >
             <p
-              className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+              className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
                 hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
               }`}
             >
@@ -989,7 +1062,7 @@ function DualSectionSlide({
                   return (
                     <li
                       key={`${item}-${occ}`}
-                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
+                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
                       style={{ lineHeight: lineHeight }}
                     >
                       {renderStyledLineText(item, {
@@ -1005,14 +1078,14 @@ function DualSectionSlide({
       )}
       {functionalItems.length > 0 && (
         <div
-          className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden ${dashboardSectionCardClassName}`}
+          className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}
         >
           <div
-            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+            className="flex min-h-0 flex-1 flex-col justify-start p-4 sm:p-5 md:p-6 lg:p-8"
             style={{ fontSize: `${fontSize}rem` }}
           >
             <p
-              className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+              className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
                 hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
               }`}
             >
@@ -1026,7 +1099,7 @@ function DualSectionSlide({
                   return (
                     <li
                       key={`${item}-${occ}`}
-                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
+                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
                       style={{ lineHeight: lineHeight }}
                     >
                       {renderStyledLineText(item, {
@@ -1444,9 +1517,8 @@ export default function DashboardPage() {
   }
 
   const slidesToRender = useMemo(() => {
-    const baseSlides = useInfinite ? [...carouselSections, carouselSections[0]] : carouselSections
     const keyCount = new Map<string, number>()
-    return baseSlides.map((slideSection) => {
+    return carouselSections.map((slideSection) => {
       const seed =
         slideSection.type === 'section'
           ? `section|${slideSection.label}|${slideSection.lines.join('|')}`
@@ -1455,7 +1527,7 @@ export default function DashboardPage() {
       keyCount.set(seed, count)
       return { ...slideSection, renderKey: `${seed}#${count}` }
     })
-  }, [carouselSections, useInfinite])
+  }, [carouselSections])
 
   const controlNameSlideEntries = useMemo(() => {
     const keyCount = new Map<string, number>()
@@ -1469,8 +1541,6 @@ export default function DashboardPage() {
       return { slideSection, renderKey: `${seed}#${count}` }
     })
   }, [carouselSections])
-
-  const [skipTransition, setSkipTransition] = useState(false)
 
   useEffect(() => {
     const unsubscribe = onAuthChange(async (user) => {
@@ -1550,39 +1620,23 @@ export default function DashboardPage() {
     return () => unsubscribe()
   }, [router])
 
-  useEffect(() => {
-    if (!skipTransition) return
-    if (currentIndex === len && useInfinite) {
-      const id = setTimeout(() => {
-        setSkipTransition(false)
-        setCurrentIndex(len - 1)
-      }, 20)
-      return () => clearTimeout(id)
-    }
-    const id = requestAnimationFrame(() => setSkipTransition(false))
-    return () => cancelAnimationFrame(id)
-  }, [skipTransition, currentIndex, len, useInfinite])
+  // Con fade ya no necesitamos skipTransition
 
   useEffect(() => {
     if (displayMode !== 'tv' || isPaused || !useInfinite) return
     const interval = setInterval(() => {
       const n = sectionsLengthRef.current
       if (n <= 1) return
-      setCurrentIndex((i) => {
-        if (i === n) return i
-        if (i === n - 1) return n
-        return i + 1
-      })
+      setCurrentIndex((i) => (i === n - 1 ? 0 : i + 1))
     }, 5500)
     return () => clearInterval(interval)
   }, [displayMode, isPaused, useInfinite])
 
   useEffect(() => {
     if (carouselSections.length > 0) {
-      const maxIdx = useInfinite ? carouselSections.length : carouselSections.length - 1
-      setCurrentIndex((i) => Math.min(i, maxIdx))
+      setCurrentIndex((i) => Math.min(i, carouselSections.length - 1))
     }
-  }, [carouselSections.length, useInfinite])
+  }, [carouselSections.length])
 
   useEffect(() => {
     if (!sessionUid) return
@@ -1719,34 +1773,16 @@ export default function DashboardPage() {
     }
   }
 
-  const handleTransitionEnd = (e: React.TransitionEvent) => {
-    if (e.target !== e.currentTarget) return
-    if (useInfinite && currentIndex === len) {
-      setSkipTransition(true)
-      setCurrentIndex(0)
-    }
-  }
+  // Con fade ya no necesitamos handleTransitionEnd
 
   const goPrev = useCallback(() => {
     if (!useInfinite) return
-    if (currentIndex === 0) {
-      setSkipTransition(true)
-      setCurrentIndex(len)
-    } else {
-      setCurrentIndex((i) => i - 1)
-    }
-  }, [currentIndex, len, useInfinite])
+    setCurrentIndex((i) => (i === 0 ? len - 1 : i - 1))
+  }, [len, useInfinite])
   const goNext = useCallback(() => {
     if (!useInfinite) return
-    if (currentIndex === len) {
-      setSkipTransition(true)
-      setCurrentIndex(0)
-    } else if (currentIndex === len - 1) {
-      setCurrentIndex(len)
-    } else {
-      setCurrentIndex((i) => i + 1)
-    }
-  }, [currentIndex, len, useInfinite])
+    setCurrentIndex((i) => (i === len - 1 ? 0 : i + 1))
+  }, [len, useInfinite])
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -2735,16 +2771,16 @@ export default function DashboardPage() {
                       </button>
                     </>
                   )}
-                  <div
-                    className="flex h-full min-h-0 w-full flex-1"
-                    style={{
-                      transform: `translateX(-${currentIndex * 100}%)`,
-                      transition:
-                        useInfinite && !skipTransition ? 'transform 0.4s ease-out' : 'none',
-                    }}
-                    onTransitionEnd={handleTransitionEnd}
-                  >
+                  <div className="relative h-full min-h-0 w-full flex-1">
                     {slidesToRender.map((slideSection, index) => {
+                      const isActive = index === currentIndex
+                      // Renderizar slide actual y slides adyacentes para fade suave
+                      const shouldRender = !useInfinite || 
+                        index === currentIndex ||
+                        Math.abs(index - currentIndex) === 1 ||
+                        (currentIndex === 0 && index === len - 1) ||
+                        (currentIndex === len - 1 && index === 0)
+                      if (!shouldRender) return null
                       if (slideSection.type === 'dual-section') {
                         const tvLayout = resolveTvSlideDensityLayout(
                           slideSection,
@@ -2758,18 +2794,22 @@ export default function DashboardPage() {
                         return (
                           <section
                             key={slideSection.renderKey}
-                            className="flex-[0_0_100%] min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
+                            className="absolute inset-0 min-h-0 min-w-0 h-full pl-0 pr-2 sm:pr-3 md:pr-4 flex items-center justify-start transition-opacity duration-700 ease-in-out"
+                            style={{
+                              opacity: isActive ? 1 : 0,
+                              pointerEvents: isActive ? 'auto' : 'none',
+                            }}
                             aria-label={
                               useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
                             }
-                            aria-hidden={useInfinite ? index !== currentIndex : undefined}
+                            aria-hidden={!isActive}
                           >
                             <div
-                              className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
+                              className="flex max-h-full min-h-0 w-full max-w-full flex-1 flex-col items-start justify-center overflow-y-auto py-1 sm:py-2"
                               style={{
                                 width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
                                 transform: `scale(${tvLayout.cardScale})`,
-                                transformOrigin: 'center center',
+                                transformOrigin: 'left center',
                               }}
                             >
                               <DualSectionSlide
@@ -2820,6 +2860,9 @@ export default function DashboardPage() {
                               if (blocks.length === 0) return null
                               if (blocks.length === 1) {
                                 const b = blocks[0]
+                                // Evita duplicar "Crossfit" en dual cuando METCON solo trae una descripción
+                                // (functionalDescription null): en ese caso se renderiza como una sola columna.
+                                if (b.title == null) return null
                                 const mid = Math.ceil(b.lines.length / 2)
                                 const titleLine =
                                   b.title === 'Sollte funcional'
@@ -2902,11 +2945,15 @@ export default function DashboardPage() {
                       return (
                         <section
                           key={slideSection.renderKey}
-                          className="flex-[0_0_100%] min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
+                          className="absolute inset-0 min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center transition-opacity duration-700 ease-in-out"
+                          style={{
+                            opacity: isActive ? 1 : 0,
+                            pointerEvents: isActive ? 'auto' : 'none',
+                          }}
                           aria-label={
                             useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
                           }
-                          aria-hidden={useInfinite ? index !== currentIndex : undefined}
+                          aria-hidden={!isActive}
                         >
                           {(() => {
                             const tvLayout = resolveTvSlideDensityLayout(
@@ -2956,7 +3003,7 @@ export default function DashboardPage() {
                               </div>
                             ) : twoCards ? (
                               <div
-                                className="mx-auto flex w-full min-h-0 max-w-full shrink-0 flex-col gap-2 sm:gap-2.5"
+                                className="ml-0 mr-auto flex w-full min-h-0 max-w-full shrink-0 flex-col gap-2 sm:gap-2.5"
                                 style={{ maxWidth: `${dualCardWidth}%` }}
                               >
                                 <DualColumnSectionHeader label={slideSection.label} />
