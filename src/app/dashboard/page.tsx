@@ -2,39 +2,48 @@
 
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  Fragment,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { checkIsAdmin, logoutUser, onAuthChange } from '@/lib/auth'
+  checkIsAdmin,
+  consumeExplicitLogoutIntent,
+  logoutUser,
+  markExplicitLogoutIntent,
+  onAuthChange,
+} from '@/lib/auth'
 import {
   clampSessionCurrentIndex,
   subscribeControlSession,
   updateControlSession,
-} from '@/lib/controlSession'
+} from '@/lib/control-session'
+import {
+  getOrCreateSessionDeviceId,
+  registerSessionPresenceHeartbeat,
+  type SessionPresencePeer,
+  subscribeSessionPresence,
+} from '@/lib/control-session-presence'
 import type { WodDoc, WodsApiResponse } from '@/lib/wod'
 
-const labelStripStyle: React.CSSProperties = {
-  writingMode: 'vertical-rl',
-  textOrientation: 'mixed',
-  transform: 'rotate(180deg)',
-}
+/** Superficie e icono compartidos: flechas carrusel TV y modo control (mismo aspecto). */
+const carouselArrowButtonSurfaceClassName =
+  'rounded-lg bg-black/30 text-gray-100 border border-white/15 shadow-sm hover:bg-black/45 hover:border-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200'
+
+const carouselArrowIconClassNameTv = 'w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20'
+
+/** Icono proporcional al carril estrecho del panel modo control. */
+const carouselArrowIconClassNameControl = 'w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-14 lg:h-14'
 
 /** Título único encima de dos columnas (METCON / STRENGTH duales). */
 function DualColumnSectionHeader({ label }: { label: string }) {
   return (
-    <h2 className="m-0 w-full shrink-0 rounded-lg border border-[#c4c4c4] dark:border-gray-600 bg-black px-3 py-2 text-center text-xl font-bold uppercase tracking-wider text-white sm:px-4 sm:py-3 sm:text-2xl md:py-4 md:text-4xl lg:py-5 lg:text-6xl">
+    <h2 className="m-0 w-full shrink-0 p-0 text-center text-3xl font-bold uppercase tracking-wider text-transparent [-webkit-text-stroke:1.5px_#42FFFF] [text-shadow:0_0_6px_rgba(66,255,255,0.75),0_0_14px_rgba(66,255,255,0.5),0_0_26px_rgba(66,255,255,0.3)] sm:text-5xl md:text-7xl lg:text-8xl">
       {label}
     </h2>
   )
 }
 
 const BLOCK_TITLE_ENDURANCE = 'Endurance'
+const PARTNER_WOD_REGEX = /\bpartner\s*wod\b/i
+const ACCESORIOS_SECTION_TITLE_REGEX = /^(accesorios|skills):?$/i
 
 function buildBlocks(lines: string[]): { title: string | null; lines: string[] }[] {
   const blocks: { title: string | null; lines: string[] }[] = []
@@ -44,7 +53,7 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
   for (const line of lines) {
     const t = line.trim()
     const isSollte = /^sollte\s+functional:?/i.test(t) || /^sollte\s+funcional:?/i.test(t)
-    const isAccesorios = /^accesorios:?/i.test(t)
+    const isAccesorios = ACCESORIOS_SECTION_TITLE_REGEX.test(t)
     const isEndurance = /\bEndurance\b/i.test(t)
 
     if (isSollte) {
@@ -61,7 +70,7 @@ function buildBlocks(lines: string[]): { title: string | null; lines: string[] }
         blocks.push({ title: currentTitle, lines: currentLines })
         currentLines = []
       }
-      currentTitle = 'Accesorios:'
+      currentTitle = /^skills:?$/i.test(t) ? 'Skills:' : 'Accesorios:'
     } else if (isEndurance) {
       if (currentLines.length > 0) {
         blocks.push({
@@ -87,9 +96,16 @@ function blocksToLines(blocks: { title: string | null; lines: string[] }[]): str
   for (const block of blocks) {
     if (block.title === 'Sollte funcional') out.push('Sollte funcional:')
     else if (block.title === 'Accesorios:') out.push('Accesorios:')
+    else if (block.title === 'Skills:') out.push('Skills:')
     out.push(...block.lines)
   }
   return out
+}
+
+function removeFirstMatchingLine(lines: string[], predicate: (line: string) => boolean): string[] {
+  const idx = lines.findIndex(predicate)
+  if (idx < 0) return lines
+  return [...lines.slice(0, idx), ...lines.slice(idx + 1)]
 }
 
 /** Debe coincidir con las clases grid de las listas de ejercicios. */
@@ -146,12 +162,16 @@ function exerciseGridItemBottomBorderClasses(
 ): string {
   if (total <= 0) return ''
   const basePad = 'py-2 sm:py-3 min-w-0 break-words'
+  const basePadFirst = 'pt-0.5 pb-2 sm:pt-1 sm:pb-3 min-w-0 break-words'
   const basePadCompactFirst = '-mt-0.5 pt-0 pb-2 sm:pt-0 sm:pb-3 min-w-0 break-words'
   const notePad = 'pt-0.5 pb-1.5 sm:pt-1 sm:pb-2 min-w-0 break-words'
+  const notePadFirst = 'pt-0 pb-1.5 sm:pt-0.5 sm:pb-2 min-w-0 break-words'
   const subtitlePad = 'pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const subtitlePadCompactFirst = '-mt-0.5 pt-0 pb-1 sm:pt-0 sm:pb-1.5 min-w-0 break-words'
   const beforeNotePad = 'pt-2 pb-0.5 sm:pt-3 sm:pb-1 min-w-0 break-words'
-  const b = 'border-b-2 border-b-[#d0d0d0] dark:border-b-gray-500'
+  /** Surco con relieve: sombra interior + filo claro (modo claro / oscuro). */
+  const b =
+    "relative border-b-0 after:content-[''] after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-0 after:h-px after:w-[300px] after:bg-[#b7e6f2]/75 dark:after:bg-[#9ad7e6]/60"
   const isCurrentSubtitle = !!item && isSubtitleLine(item, ctx)
   const isCurrentSpecial =
     !!item && (isSpecialStyledLine(item) || (ctx?.isFirstItem && isForTimeLine(item)))
@@ -162,9 +182,15 @@ function exerciseGridItemBottomBorderClasses(
     }
     return `${subtitlePad} border-b-0`
   }
+  if (ctx?.isFirstItem && isCurrentSpecial) {
+    return `${notePadFirst} border-b-0`
+  }
   if (isCurrentSpecial) return `${notePad} border-b-0`
   if (ctx?.isFirstItem && ctx.compactFirstItemTopSpacing) {
     return index + 1 >= total ? `${basePadCompactFirst} border-b-0` : `${basePadCompactFirst} ${b}`
+  }
+  if (ctx?.isFirstItem) {
+    return index + 1 >= total ? `${basePadFirst} border-b-0` : `${basePadFirst} ${b}`
   }
   return index + 1 >= total ? `${basePad} border-b-0` : `${basePad} ${b}`
 }
@@ -193,11 +219,11 @@ function splitWarmupIntoTwoColumns(items: string[]): string[][] {
 }
 
 const EXERCISE_LINE_TEXT =
-  'text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
+  'text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
 const NOTE_LINE_TEXT =
-  'text-[#333] dark:text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
+  'text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
 const SUBTITLE_LINE_TEXT =
-  'text-[#666] dark:text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
+  'text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
 
 /**
  * Mapa de puntos donde se decide la tipografía por línea (y tokens #00FFFF / énfasis).
@@ -260,6 +286,20 @@ function splitExerciseLineAtPlusNumberOutsideParens(line: string): string[] {
       segments.push(line.slice(chunkStart, splitAfter))
       chunkStart = splitAfter
       i = splitAfter - 1
+      continue
+    }
+
+    // Si aparece un porcentaje en mitad de la línea, lo pasamos al siguiente renglón.
+    // Ejemplo: "... Split jerk) 60% Rm ..." -> salto antes de "60%".
+    if (
+      depth === 0 &&
+      i > chunkStart &&
+      /\d/.test(c) &&
+      line[i - 1] === ' ' &&
+      /^\d+(?:[.,]\d+)?%(?=\s)/.test(line.slice(i))
+    ) {
+      segments.push(line.slice(chunkStart, i))
+      chunkStart = i
     }
   }
   segments.push(line.slice(chunkStart))
@@ -281,7 +321,10 @@ function renderLineHighlightTokens(line: string): React.ReactNode {
 
     const isEmphasisToken = /^RPE\s*\d+(?:\s*-\s*\d+)?$/i.test(token) || /%$/.test(token)
     parts.push(
-      <span key={`token-${start}`} className={isEmphasisToken ? EMPHASIS_TOKEN_TEXT : HIGHLIGHT_TOKEN_TEXT}>
+      <span
+        key={`token-${start}`}
+        className={isEmphasisToken ? EMPHASIS_TOKEN_TEXT : HIGHLIGHT_TOKEN_TEXT}
+      >
         {token}
       </span>
     )
@@ -326,9 +369,18 @@ function renderStyledLineText(
   )
 }
 
-const COL_BORDER_MD = 'md:border-l-2 md:border-l-[#d0d0d0] md:dark:border-l-gray-500 md:pl-3'
-const COL_BORDER_XL = 'xl:border-l-2 xl:border-l-[#d0d0d0] xl:dark:border-l-gray-500 xl:pl-3'
-const COL_BORDER_SM = 'sm:border-l-2 sm:border-l-[#d0d0d0] sm:dark:border-l-gray-500 sm:pl-3'
+const COL_BORDER_MD =
+  'md:border-l md:border-l-[#9ca3b0] md:dark:border-l-[#3a424c] md:pl-3 ' +
+  'md:shadow-[inset_2px_0_0_0_rgba(15,23,42,0.11),inset_1px_0_0_0_rgba(255,255,255,0.48)] ' +
+  'md:dark:shadow-[inset_2px_0_0_0_rgba(0,0,0,0.65),inset_1px_0_0_0_rgba(255,255,255,0.06)]'
+const COL_BORDER_XL =
+  'xl:border-l xl:border-l-[#9ca3b0] xl:dark:border-l-[#3a424c] xl:pl-3 ' +
+  'xl:shadow-[inset_2px_0_0_0_rgba(15,23,42,0.11),inset_1px_0_0_0_rgba(255,255,255,0.48)] ' +
+  'xl:dark:shadow-[inset_2px_0_0_0_rgba(0,0,0,0.65),inset_1px_0_0_0_rgba(255,255,255,0.06)]'
+const COL_BORDER_SM =
+  'sm:border-l sm:border-l-[#9ca3b0] sm:dark:border-l-[#3a424c] sm:pl-3 ' +
+  'sm:shadow-[inset_2px_0_0_0_rgba(15,23,42,0.11),inset_1px_0_0_0_rgba(255,255,255,0.48)] ' +
+  'sm:dark:shadow-[inset_2px_0_0_0_rgba(0,0,0,0.65),inset_1px_0_0_0_rgba(255,255,255,0.06)]'
 
 function ExerciseColumnItems({
   items,
@@ -388,7 +440,7 @@ function ExerciseMultiColumnGrid({
           return (
             <li
               key={`${item}-${occ}`}
-              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
               {renderStyledLineText(item, {
@@ -536,6 +588,28 @@ const STORAGE_KEY_DISPLAY_MODE = 'dashboard-display-mode'
 
 type DashboardDisplayMode = 'tv' | 'control'
 
+/** Tarjetas de contenido (WOD): volumen con gradiente de luz + sombras en capas (especialmente visibles en TV / oscuro). */
+const dashboardSectionCardClassName =
+  'rounded-xl sm:rounded-2xl border border-gray-400/30 ' +
+  'bg-gradient-to-br from-[#4a4a4a] via-[#383838] to-[#262626] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.16),inset_0_-6px_14px_rgba(0,0,0,0.42),0_6px_12px_-2px_rgba(0,0,0,0.55),0_16px_36px_-8px_rgba(0,0,0,0.62),0_32px_64px_-16px_rgba(0,0,0,0.5)]'
+
+const dashboardControlMainCardClassName = dashboardSectionCardClassName.replace(
+  'rounded-xl sm:rounded-2xl',
+  'rounded-2xl'
+)
+
+/** Paneles flotantes del modo control: relieve acorde a las tarjetas de sección. */
+const dashboardControlPanel3dClassName =
+  'rounded-xl border border-gray-400/30 ' +
+  'bg-gradient-to-br from-[#454545] via-[#3a3a3a] to-[#2c2c2c] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.12),inset_0_-4px_10px_rgba(0,0,0,0.35),0_6px_14px_-2px_rgba(0,0,0,0.5),0_18px_40px_-10px_rgba(0,0,0,0.48)]'
+
+const dashboardControlPanel3dBlueClassName =
+  'rounded-xl border border-blue-800/90 ' +
+  'bg-gradient-to-br from-[#404858] via-[#353d4d] to-[#2a3140] ' +
+  'shadow-[inset_0_2px_0_0_rgba(255,255,255,0.11),inset_0_-4px_10px_rgba(0,0,0,0.38),0_6px_14px_-2px_rgba(0,0,0,0.52),0_18px_40px_-10px_rgba(0,0,0,0.5)]'
+
 function nearlyEqualSessionNumber(a: number, b: number): boolean {
   return Math.abs(a - b) < 1e-6
 }
@@ -553,9 +627,9 @@ function getCardWidthPercent(opts: {
   const { lineHeight, fontSizeScale, dual = false } = opts
   // El ajuste de ancho depende del contenido tipográfico.
   const fitFactor = Math.max(fontSizeScale, lineHeight / LINE_HEIGHT_DEFAULT)
-  const base = dual ? 98 : 96
+  const base = dual ? 102 : 96
   const computed = base / Math.max(0.6, fitFactor)
-  return clamp(computed, dual ? 66 : 58, 98)
+  return clamp(computed, dual ? 72 : 58, dual ? 100 : 98)
 }
 
 function SectionSlide({
@@ -574,56 +648,110 @@ function SectionSlide({
   /** Cuando hay dos columnas, el título va en {@link DualColumnSectionHeader} y no en la franja. */
   hideVerticalLabel?: boolean
 }) {
-  const items = lines
+  const rawItems = lines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
-  if (items.length === 0) return null
-  const firstLine = items[0]
-  const restLines = items.slice(1)
+  if (rawItems.length === 0) return null
   const isMetcon = label.toUpperCase().startsWith('METCON')
+  const partnerWodLine = isMetcon
+    ? (rawItems.find((line) => PARTNER_WOD_REGEX.test(line)) ?? null)
+    : null
+  const items = isMetcon
+    ? removeFirstMatchingLine(rawItems, (line) => PARTNER_WOD_REGEX.test(line))
+    : rawItems
+  const effectiveItems = items.length > 0 ? items : rawItems
+  const firstLine = effectiveItems[0]
+  const restLines = effectiveItems.slice(1)
   const isWarmup = label.toUpperCase().startsWith('WARM')
   const isAccesorios = label.toUpperCase().startsWith('ACCESORIOS')
   const isFuerza = label === 'STRENGTH'
-  const labelBg = 'bg-black'
   const blocks = buildBlocks(restLines)
+  const hasEnduranceKeyword = effectiveItems.some((line) => /\bEndurance\b/i.test(line))
+  const hasEnduranceKeywordInMetcon =
+    isMetcon && effectiveItems.some((line) => /\bEndurance\b/i.test(line))
   const isEnduranceSection =
     isMetcon &&
     (/\bEndurance\b/i.test(firstLine) ||
       (blocks.length === 1 && blocks[0].title === BLOCK_TITLE_ENDURANCE))
+  const shouldFlattenSingleTrackMetcon =
+    isMetcon && !hasEnduranceKeywordInMetcon && blocks.length === 1 && blocks[0]?.title == null
+  const headerToContentSpacingClass = hideVerticalLabel
+    ? ''
+    : isWarmup
+      ? 'mt-0.5 sm:mt-1 md:mt-1.5'
+      : 'mt-1 sm:mt-1.5 md:mt-2'
+  const contentPaddingClass = isWarmup
+    ? 'px-4 pb-4 pt-0.5 sm:px-5 sm:pb-5 sm:pt-1 md:px-6 md:pb-6 md:pt-1.5 lg:px-8 lg:pb-8 lg:pt-2'
+    : 'p-4 sm:p-5 md:p-6 lg:p-8'
+  const accesoriosBlock = blocks.find((b) =>
+    ACCESORIOS_SECTION_TITLE_REGEX.test((b.title ?? '').trim())
+  )
+  const shouldUseAccesoriosDualByTitle =
+    isAccesorios &&
+    !hasEnduranceKeyword &&
+    /^(conditioning|core workout|endurance)\b/i.test(firstLine) &&
+    !!accesoriosBlock
+  const shouldFlattenAccesoriosSingleTrack = isAccesorios && !shouldUseAccesoriosDualByTitle
+  const accesoriosInlineHeaderMatch = shouldFlattenAccesoriosSingleTrack
+    ? (items[0]?.match(/^(skills|accesorios):\s*(.+)$/i) ?? null)
+    : null
+  const accesoriosInlineHeaderLine = accesoriosInlineHeaderMatch
+    ? `${accesoriosInlineHeaderMatch[1][0].toUpperCase()}${accesoriosInlineHeaderMatch[1].slice(1).toLowerCase()}: ${accesoriosInlineHeaderMatch[2]}`
+    : null
+  const accesoriosSingleTrackLines = shouldFlattenAccesoriosSingleTrack
+    ? items.filter((line, idx) => {
+        if (idx === 0 && accesoriosInlineHeaderMatch) return false
+        return !ACCESORIOS_SECTION_TITLE_REGEX.test(line.trim())
+      })
+    : []
+  const conditioningLinesForAccesoriosDual = shouldUseAccesoriosDualByTitle
+    ? blocks
+        .filter((b) => !ACCESORIOS_SECTION_TITLE_REGEX.test((b.title ?? '').trim()))
+        .flatMap((b) => b.lines)
+    : []
+  const accesoriosLinesForAccesoriosDual = shouldUseAccesoriosDualByTitle
+    ? (accesoriosBlock?.lines ?? [])
+    : []
 
   return (
     <div
-      className={`flex rounded-lg overflow-hidden border border-[#c4c4c4] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] min-h-0 max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''} ${className}`}
+      className={`flex flex-col overflow-hidden min-h-0 h-full ${hideVerticalLabel ? 'max-w-none mx-0' : `max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''}`} ${className}`}
     >
-      {!hideVerticalLabel && (
-        <div
-          className={`flex flex-shrink-0 self-stretch w-10 sm:w-14 md:w-20 lg:w-24 min-w-[2.5rem] sm:min-w-[3.5rem] md:min-w-[5rem] lg:min-w-24 items-center justify-center py-2 sm:py-3 md:py-4 px-1 sm:px-2 md:px-3 text-white text-xl sm:text-2xl md:text-4xl lg:text-6xl font-bold uppercase tracking-wider ${labelBg}`}
-          style={labelStripStyle}
-        >
-          {label}
+      {!hideVerticalLabel && <DualColumnSectionHeader label={label} />}
+      {isMetcon && partnerWodLine && (
+        <div className="mt-1 sm:mt-1.5 md:mt-2 flex justify-center">
+          <span className="inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base">
+            {partnerWodLine}
+          </span>
         </div>
       )}
       <div
-        className={`flex-1 min-h-0 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto flex flex-col ${hideVerticalLabel ? '' : `border-l ${isMetcon ? 'border-black dark:border-gray-500' : 'border-[#e0e0e0] dark:border-gray-600'}`}`}
-        style={{ fontSize: `${fontSize}rem` }}
+        className={`flex-1 min-h-0 ${contentPaddingClass} overflow-y-auto [&::-webkit-scrollbar]:hidden flex flex-col ${headerToContentSpacingClass}`}
+        style={{ fontSize: `${fontSize}rem`, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {restLines.length > 0 ? (
           <>
-            {!isMetcon && (
-              <p
-                className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                  isAccesorios ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
-                }`}
-              >
-                {firstLine}
-              </p>
-            )}
+            {!isMetcon &&
+              !shouldUseAccesoriosDualByTitle &&
+              !shouldFlattenAccesoriosSingleTrack && (
+                <p
+                  className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
+                    isAccesorios
+                      ? 'mb-0 leading-tight'
+                      : isWarmup
+                        ? 'mb-0 sm:mb-0.5 md:mb-1'
+                        : 'mb-1 sm:mb-1.5 md:mb-2'
+                  }`}
+                >
+                  {firstLine}
+                </p>
+              )}
             {isMetcon ? (
               <>
                 {isEnduranceSection ? (
-                  <div className="mb-2 sm:mb-3 md:mb-4">
+                  <div className="mb-1 sm:mb-1.5 md:mb-2">
                     <p
-                      className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                      className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                         restLines[0] && isSubtitleLine(restLines[0], { isFirstItem: true })
                           ? 'mb-0 leading-tight'
                           : ''
@@ -632,7 +760,9 @@ function SectionSlide({
                       {firstLine}
                     </p>
                     {restLines[0] && (
-                      <p className="text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium">
+                      <p
+                        className={`text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium ${hideVerticalLabel ? '' : 'text-center'}`}
+                      >
                         {restLines[0]}
                       </p>
                     )}
@@ -648,20 +778,23 @@ function SectionSlide({
                           ? block.lines[0]
                           : firstLine
                     if (block.title === 'Crossfit' || block.title === null) {
+                      if (shouldFlattenSingleTrackMetcon) return null
                       const hasSubtitleTitleLine = isSubtitleLine(firstLine, { isFirstItem: true })
                       return (
                         <div
                           key={`${block.title ?? 'Crossfit'}-${titleLine}`}
-                          className="mb-2 sm:mb-3 md:mb-4"
+                          className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                               hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
                             }`}
                           >
                             Crossfit
                           </p>
-                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight">
+                          <p
+                            className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                          >
                             {firstLine}
                           </p>
                         </div>
@@ -672,16 +805,18 @@ function SectionSlide({
                       return (
                         <div
                           key={`${block.title ?? 'Sollte funcional'}-${titleLine}`}
-                          className="mb-2 sm:mb-3 md:mb-4"
+                          className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                               hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
                             }`}
                           >
                             Sollte funcional
                           </p>
-                          <p className="text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight">
+                          <p
+                            className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                          >
                             {titleLine}
                           </p>
                         </div>
@@ -691,9 +826,11 @@ function SectionSlide({
                       return (
                         <div
                           key={`${block.title ?? BLOCK_TITLE_ENDURANCE}-${titleLine}`}
-                          className="mb-2 sm:mb-3 md:mb-4"
+                          className="mb-1 sm:mb-1.5 md:mb-2"
                         >
-                          <p className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+                          <p
+                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
+                          >
                             {titleLine}
                           </p>
                         </div>
@@ -703,7 +840,7 @@ function SectionSlide({
                       return (
                         <p
                           key={`${block.title}-${block.lines.join('|')}`}
-                          className="font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2"
+                          className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2 ${hideVerticalLabel ? '' : 'text-center'}`}
                         >
                           {block.title}
                         </p>
@@ -715,13 +852,16 @@ function SectionSlide({
                 {(() => {
                   const allListLines = isEnduranceSection
                     ? restLines.slice(1)
-                    : blocks.flatMap((block) => {
-                        const isSollteBlock = block.title === 'Sollte funcional'
-                        const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
-                        if (isSollteBlock && block.lines.length > 0) return block.lines.slice(1)
-                        if (isEnduranceBlock && block.lines.length > 0) return block.lines.slice(1)
-                        return block.lines
-                      })
+                    : shouldFlattenSingleTrackMetcon
+                      ? effectiveItems
+                      : blocks.flatMap((block) => {
+                          const isSollteBlock = block.title === 'Sollte funcional'
+                          const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
+                          if (isSollteBlock && block.lines.length > 0) return block.lines.slice(1)
+                          if (isEnduranceBlock && block.lines.length > 0)
+                            return block.lines.slice(1)
+                          return block.lines
+                        })
                   const useGroupsOfFour =
                     !isEnduranceSection && allListLines.length >= 4 && allListLines.length % 4 === 0
                   const useGroupsOfThree =
@@ -752,26 +892,28 @@ function SectionSlide({
                       {chunks.map((chunk) => {
                         const keyCount = new Map<string, number>()
                         return (
-                        <ul
-                          key={`${chunk.join('|')}-${chunk.length}`}
-                          className="list-none p-0 m-0 flex flex-col"
-                        >
-                          {chunk.map((item, i) => {
-                            const occ = (keyCount.get(item) ?? 0) + 1
-                            keyCount.set(item, occ)
-                            return (
-                              <li
-                                key={`${item}-${occ}`}
-                                className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
-                                style={{ lineHeight: lineHeight }}
-                              >
-                                {renderStyledLineText(item, {
-                                  highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                                })}
-                              </li>
-                            )
-                          })}
-                        </ul>
+                          <ul
+                            key={`${chunk.join('|')}-${chunk.length}`}
+                            className="list-none p-0 m-0 flex flex-col"
+                          >
+                            {chunk.map((item, i) => {
+                              const occ = (keyCount.get(item) ?? 0) + 1
+                              keyCount.set(item, occ)
+                              return (
+                                <li
+                                  key={`${item}-${occ}`}
+                                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${hideVerticalLabel ? '' : 'text-center'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
+                                  style={{ lineHeight: lineHeight }}
+                                >
+                                  {renderStyledLineText(item, {
+                                    highlightTokens: !isSubtitleLine(item, {
+                                      isFirstItem: i === 0,
+                                    }),
+                                  })}
+                                </li>
+                              )
+                            })}
+                          </ul>
                         )
                       })}
                     </div>
@@ -780,10 +922,64 @@ function SectionSlide({
                       items={allListLines}
                       layout={gridLayout}
                       lineHeight={lineHeight}
+                      extraLiClass={
+                        isEnduranceSection || shouldFlattenSingleTrackMetcon
+                          ? () => 'text-center'
+                          : undefined
+                      }
                     />
                   )
                 })()}
               </>
+            ) : shouldFlattenAccesoriosSingleTrack ? (
+              <>
+                {accesoriosInlineHeaderLine && (
+                  <p
+                    className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0.5 sm:mb-1 md:mb-1.5 ${hideVerticalLabel ? '' : 'text-center'}`}
+                  >
+                    {accesoriosInlineHeaderLine}
+                  </p>
+                )}
+                <ExerciseMultiColumnGrid
+                  items={accesoriosSingleTrackLines}
+                  layout="single"
+                  lineHeight={lineHeight}
+                  compactFirstItemTopSpacing
+                />
+              </>
+            ) : shouldUseAccesoriosDualByTitle ? (
+              <div className="mt-2 sm:mt-3 md:mt-4 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8">
+                <div className="min-w-0">
+                  <p
+                    className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                  >
+                    {firstLine}
+                  </p>
+                  {conditioningLinesForAccesoriosDual.length > 0 && (
+                    <ExerciseMultiColumnGrid
+                      items={conditioningLinesForAccesoriosDual}
+                      layout="single"
+                      lineHeight={lineHeight}
+                      compactFirstItemTopSpacing
+                    />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p
+                    className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                  >
+                    Accesorios
+                  </p>
+                  {accesoriosLinesForAccesoriosDual.length > 0 && (
+                    <ExerciseMultiColumnGrid
+                      items={accesoriosLinesForAccesoriosDual}
+                      layout="single"
+                      lineHeight={lineHeight}
+                      compactFirstItemTopSpacing
+                    />
+                  )}
+                </div>
+              </div>
             ) : (
               blocks.map((block, bi) => {
                 const listLines = block.lines
@@ -798,7 +994,13 @@ function SectionSlide({
                 return (
                   <div
                     key={`${block.title ?? 'block'}-${listLines.join('|')}`}
-                    className={bi > 0 ? (isAccesorios ? 'mt-1 sm:mt-1.5 md:mt-2' : 'mt-2 sm:mt-3 md:mt-4') : ''}
+                    className={
+                      bi > 0
+                        ? isAccesorios
+                          ? 'mt-1 sm:mt-1.5 md:mt-2'
+                          : 'mt-2 sm:mt-3 md:mt-4'
+                        : ''
+                    }
                   >
                     {block.title && (
                       <p
@@ -813,8 +1015,8 @@ function SectionSlide({
                         {block.title}
                       </p>
                     )}
-                    {listLines.length > 0 && (
-                      warmupColumns.length > 1 ? (
+                    {listLines.length > 0 &&
+                      (warmupColumns.length > 1 ? (
                         <>
                           <div className="sm:hidden">
                             <ExerciseMultiColumnGrid
@@ -846,15 +1048,16 @@ function SectionSlide({
                           lineHeight={lineHeight}
                           compactFirstItemTopSpacing={isAccesorios}
                         />
-                      )
-                    )}
+                      ))}
                   </div>
                 )
               })
             )}
           </>
         ) : (
-          <p className="text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em]">
+          <p
+            className={`text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
+          >
             {firstLine}
           </p>
         )}
@@ -878,12 +1081,23 @@ function DualSectionSlide({
   fontSize?: number
   className?: string
 }) {
-  const crossfitItems = crossfitLines
+  const dualColumnFontSize = clamp(fontSize * 1.14, 0.9, 1.45)
+  const rawCrossfitItems = crossfitLines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
-  const functionalItems = functionalLines
+  const rawFunctionalItems = functionalLines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
+  const partnerWodLine =
+    rawCrossfitItems.find((line) => PARTNER_WOD_REGEX.test(line)) ??
+    rawFunctionalItems.find((line) => PARTNER_WOD_REGEX.test(line)) ??
+    null
+  const crossfitItems = removeFirstMatchingLine(rawCrossfitItems, (line) =>
+    PARTNER_WOD_REGEX.test(line)
+  )
+  const functionalItems = removeFirstMatchingLine(rawFunctionalItems, (line) =>
+    PARTNER_WOD_REGEX.test(line)
+  )
   const hasCrossfitSubtitleFirstItem =
     crossfitItems.length > 0 && isSubtitleLine(crossfitItems[0], { isFirstItem: true })
   const hasFunctionalSubtitleFirstItem =
@@ -895,80 +1109,87 @@ function DualSectionSlide({
 
   return (
     <div
-      className={`mx-auto flex w-full max-w-[96%] min-h-0 flex-col gap-2 sm:gap-3 md:gap-4 ${className}`}
+      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-1 sm:gap-1.5 md:gap-2 ${className}`}
     >
       <DualColumnSectionHeader label={label} />
-      <div className="flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3 md:gap-4">
-      {crossfitItems.length > 0 && (
-        <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-lg border border-[#c4c4c4] bg-white dark:border-gray-600 dark:bg-[#3C3C3C]">
-          <div
-            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
-            style={{ fontSize: `${fontSize}rem` }}
-          >
-            <p
-              className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
-              }`}
-            >
-              Crossfit
-            </p>
-            <ul className="list-none p-0 m-0 flex flex-col">
-              {crossfitItems.map((item, i) => (
-                (() => {
-                  const occ = (crossfitKeyCount.get(item) ?? 0) + 1
-                  crossfitKeyCount.set(item, occ)
-                  return (
-                    <li
-                      key={`${item}-${occ}`}
-                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
-                      style={{ lineHeight: lineHeight }}
-                    >
-                      {renderStyledLineText(item, {
-                        highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                      })}
-                    </li>
-                  )
-                })()
-              ))}
-            </ul>
-          </div>
+      {partnerWodLine && (
+        <div className="flex justify-center">
+          <span className="inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base">
+            {partnerWodLine}
+          </span>
         </div>
       )}
-      {functionalItems.length > 0 && (
-        <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-lg border border-[#c4c4c4] bg-white dark:border-gray-600 dark:bg-[#3C3C3C]">
-          <div
-            className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
-            style={{ fontSize: `${fontSize}rem` }}
-          >
-            <p
-              className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-2 sm:mb-3 md:mb-4'
-              }`}
+      <div className="flex min-h-0 flex-1 items-stretch gap-1.5 sm:gap-2 md:gap-3">
+        {crossfitItems.length > 0 && (
+          <div className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}>
+            <div
+              className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+              style={{ fontSize: `${dualColumnFontSize}rem` }}
             >
-              Funcional
-            </p>
-            <ul className="list-none p-0 m-0 flex flex-col">
-              {functionalItems.map((item, i) => (
-                (() => {
-                  const occ = (functionalKeyCount.get(item) ?? 0) + 1
-                  functionalKeyCount.set(item, occ)
-                  return (
-                    <li
-                      key={`${item}-${occ}`}
-                      className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
-                      style={{ lineHeight: lineHeight }}
-                    >
-                      {renderStyledLineText(item, {
-                        highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                      })}
-                    </li>
-                  )
-                })()
-              ))}
-            </ul>
+              <p
+                className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                  hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
+                }`}
+              >
+                Crossfit
+              </p>
+              <ul className="list-none p-0 m-0 flex flex-col">
+                {crossfitItems.map((item, i) =>
+                  (() => {
+                    const occ = (crossfitKeyCount.get(item) ?? 0) + 1
+                    crossfitKeyCount.set(item, occ)
+                    return (
+                      <li
+                        key={`${item}-${occ}`}
+                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
+                        style={{ lineHeight: lineHeight }}
+                      >
+                        {renderStyledLineText(item, {
+                          highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                        })}
+                      </li>
+                    )
+                  })()
+                )}
+              </ul>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {functionalItems.length > 0 && (
+          <div className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}>
+            <div
+              className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+              style={{ fontSize: `${dualColumnFontSize}rem` }}
+            >
+              <p
+                className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                  hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
+                }`}
+              >
+                Funcional
+              </p>
+              <ul className="list-none p-0 m-0 flex flex-col">
+                {functionalItems.map((item, i) =>
+                  (() => {
+                    const occ = (functionalKeyCount.get(item) ?? 0) + 1
+                    functionalKeyCount.set(item, occ)
+                    return (
+                      <li
+                        key={`${item}-${occ}`}
+                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
+                        style={{ lineHeight: lineHeight }}
+                      >
+                        {renderStyledLineText(item, {
+                          highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                        })}
+                      </li>
+                    )
+                  })()
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1177,6 +1398,9 @@ export default function DashboardPage() {
   const [displayMode, setDisplayMode] = useState<DashboardDisplayMode>('tv')
   const [showLongContentHintModal, setShowLongContentHintModal] = useState(false)
   const [sessionUid, setSessionUid] = useState<string | null>(null)
+  const [sessionPresencePeers, setSessionPresencePeers] = useState<SessionPresencePeer[]>([])
+  const sessionDeviceIdRef = useRef('')
+  const displayModeRef = useRef<DashboardDisplayMode>('tv')
   const applyingRemoteRef = useRef(false)
   const controlNamesStripRef = useRef<HTMLDivElement>(null)
   const controlStripSkipSyncRef = useRef(false)
@@ -1193,6 +1417,7 @@ export default function DashboardPage() {
   })
   const lenRef = useRef(0)
   const useInfiniteRef = useRef(false)
+  const hadAuthenticatedSessionRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -1210,6 +1435,26 @@ export default function DashboardPage() {
       // ignore
     }
   }, [displayMode])
+
+  displayModeRef.current = displayMode
+
+  useEffect(() => {
+    if (!sessionUid) {
+      setSessionPresencePeers([])
+      return
+    }
+    return subscribeSessionPresence(sessionUid, setSessionPresencePeers)
+  }, [sessionUid])
+
+  useEffect(() => {
+    if (!sessionUid) return
+    sessionDeviceIdRef.current = getOrCreateSessionDeviceId()
+    return registerSessionPresenceHeartbeat(
+      sessionUid,
+      () => sessionDeviceIdRef.current,
+      () => displayModeRef.current
+    )
+  }, [sessionUid])
 
   useEffect(() => {
     try {
@@ -1326,7 +1571,8 @@ export default function DashboardPage() {
   )
   const hasLongMetconOrStrengthSections = carouselSections.some(
     (slide) =>
-      isTvDenseLayoutSection(slide) && countSectionLinesForDensity(slide) >= DENSE_SECTION_LINE_THRESHOLD
+      isTvDenseLayoutSection(slide) &&
+      countSectionLinesForDensity(slide) >= DENSE_SECTION_LINE_THRESHOLD
   )
   const sectionsLengthRef = useRef(carouselSections.length)
   const currentIndexRef = useRef(0)
@@ -1349,9 +1595,8 @@ export default function DashboardPage() {
   }
 
   const slidesToRender = useMemo(() => {
-    const baseSlides = useInfinite ? [...carouselSections, carouselSections[0]] : carouselSections
     const keyCount = new Map<string, number>()
-    return baseSlides.map((slideSection) => {
+    return carouselSections.map((slideSection) => {
       const seed =
         slideSection.type === 'section'
           ? `section|${slideSection.label}|${slideSection.lines.join('|')}`
@@ -1360,7 +1605,7 @@ export default function DashboardPage() {
       keyCount.set(seed, count)
       return { ...slideSection, renderKey: `${seed}#${count}` }
     })
-  }, [carouselSections, useInfinite])
+  }, [carouselSections])
 
   const controlNameSlideEntries = useMemo(() => {
     const keyCount = new Map<string, number>()
@@ -1375,13 +1620,18 @@ export default function DashboardPage() {
     })
   }, [carouselSections])
 
-  const [skipTransition, setSkipTransition] = useState(false)
-
   useEffect(() => {
     const unsubscribe = onAuthChange(async (user) => {
       if (!user) {
         setSessionUid(null)
-        router.replace('/')
+        const explicitLogout = consumeExplicitLogoutIntent()
+        if (explicitLogout || !hadAuthenticatedSessionRef.current) {
+          router.replace('/')
+          return
+        }
+        setError(
+          'Se bloqueó un cierre de sesión no autorizado. Usa el botón "Cerrar sesión" para finalizar la sesión.'
+        )
         return
       }
       try {
@@ -1398,6 +1648,7 @@ export default function DashboardPage() {
         return
       }
 
+      hadAuthenticatedSessionRef.current = true
       setSessionUid(user.uid)
 
       try {
@@ -1447,39 +1698,23 @@ export default function DashboardPage() {
     return () => unsubscribe()
   }, [router])
 
-  useEffect(() => {
-    if (!skipTransition) return
-    if (currentIndex === len && useInfinite) {
-      const id = setTimeout(() => {
-        setSkipTransition(false)
-        setCurrentIndex(len - 1)
-      }, 20)
-      return () => clearTimeout(id)
-    }
-    const id = requestAnimationFrame(() => setSkipTransition(false))
-    return () => cancelAnimationFrame(id)
-  }, [skipTransition, currentIndex, len, useInfinite])
+  // Con fade ya no necesitamos skipTransition
 
   useEffect(() => {
     if (displayMode !== 'tv' || isPaused || !useInfinite) return
     const interval = setInterval(() => {
       const n = sectionsLengthRef.current
       if (n <= 1) return
-      setCurrentIndex((i) => {
-        if (i === n) return i
-        if (i === n - 1) return n
-        return i + 1
-      })
+      setCurrentIndex((i) => (i === n - 1 ? 0 : i + 1))
     }, 5500)
     return () => clearInterval(interval)
   }, [displayMode, isPaused, useInfinite])
 
   useEffect(() => {
     if (carouselSections.length > 0) {
-      const maxIdx = useInfinite ? carouselSections.length : carouselSections.length - 1
-      setCurrentIndex((i) => Math.min(i, maxIdx))
+      setCurrentIndex((i) => Math.min(i, carouselSections.length - 1))
     }
-  }, [carouselSections.length, useInfinite])
+  }, [carouselSections.length])
 
   useEffect(() => {
     if (!sessionUid) return
@@ -1607,41 +1842,25 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
+      markExplicitLogoutIntent()
       await logoutUser()
       router.replace('/')
     } catch {
+      consumeExplicitLogoutIntent()
       setError('Error al cerrar sesión')
     }
   }
 
-  const handleTransitionEnd = (e: React.TransitionEvent) => {
-    if (e.target !== e.currentTarget) return
-    if (useInfinite && currentIndex === len) {
-      setSkipTransition(true)
-      setCurrentIndex(0)
-    }
-  }
+  // Con fade ya no necesitamos handleTransitionEnd
 
   const goPrev = useCallback(() => {
     if (!useInfinite) return
-    if (currentIndex === 0) {
-      setSkipTransition(true)
-      setCurrentIndex(len)
-    } else {
-      setCurrentIndex((i) => i - 1)
-    }
-  }, [currentIndex, len, useInfinite])
+    setCurrentIndex((i) => (i === 0 ? len - 1 : i - 1))
+  }, [len, useInfinite])
   const goNext = useCallback(() => {
     if (!useInfinite) return
-    if (currentIndex === len) {
-      setSkipTransition(true)
-      setCurrentIndex(0)
-    } else if (currentIndex === len - 1) {
-      setCurrentIndex(len)
-    } else {
-      setCurrentIndex((i) => i + 1)
-    }
-  }, [currentIndex, len, useInfinite])
+    setCurrentIndex((i) => (i === len - 1 ? 0 : i + 1))
+  }, [len, useInfinite])
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -1757,313 +1976,318 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#f5f5f5] dark:bg-[#1a1a1a] flex flex-col">
-      <header className="bg-white dark:bg-[#3C3C3C] py-2 sm:py-3 md:py-4 px-3 sm:px-4 md:px-6 shadow-sm shrink-0">
-        <div className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center w-full max-w-full sm:max-w-[900px] mx-auto gap-2 sm:gap-4 min-w-0">
-          <div className="flex flex-col gap-2 order-2 sm:order-1 min-w-0">
-            <p
-              className="text-[#333] dark:text-gray-200 text-sm sm:text-base md:text-xl lg:text-2xl font-medium text-center sm:text-left overflow-hidden"
-              title={dateLabel.full}
-            >
-              <span className="hidden sm:block truncate">
-                {dateLabel.weekday}
-                <br />
-                {dateLabel.datePart}
-              </span>
-              <span className="sm:hidden block truncate">
-                {dateLabel.weekday}, {dateLabel.datePart}
-              </span>
-            </p>
-            {isSedeMaestra && (
-              <label className="flex items-center gap-2 text-[#333] dark:text-gray-200 text-sm sm:text-base">
-                <span className="font-medium">Consultar WOD del día:</span>
-                <input
-                  type="date"
-                  value={
-                    selectedWodDate.getFullYear() +
-                    '-' +
-                    String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
-                    '-' +
-                    String(selectedWodDate.getDate()).padStart(2, '0')
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value
-                    if (val) {
-                      const d = new Date(`${val}T12:00:00`)
-                      d.setHours(0, 0, 0, 0)
-                      setSelectedWodDate(d)
-                    }
-                  }}
-                  className="rounded-lg border border-[#d0d0d0] dark:border-gray-500 bg-white dark:bg-[#2a2a2a] text-[#333] dark:text-gray-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]"
-                />
-              </label>
-            )}
-          </div>
-          <div className="flex justify-center items-center order-1 sm:order-2 min-w-0 shrink-0 overflow-hidden">
+    <div className="dark min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_28%,#2d3544_0%,#22262e_40%,#1a1a1a_68%,#121212_100%)]">
+      {displayMode === 'tv' && (
+        <div className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(34rem,calc(100vw-1rem))] flex-col gap-3.5 sm:left-3 sm:top-3 sm:gap-4">
+          <div className="pointer-events-auto inline-flex w-fit items-center px-8 py-5 sm:px-9 sm:py-5">
             <Image
               src="/sollte_negro_full.png"
               alt="Sollte Logo"
-              width={180}
-              height={72}
-              className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto max-w-[45vw] sm:max-w-[200px] dark:invert object-contain"
+              width={360}
+              height={136}
+              className="h-16 w-auto sm:h-18 md:h-20 invert object-contain"
               unoptimized
             />
           </div>
-          <p className="text-[#333] dark:text-gray-200 text-base sm:text-lg md:text-2xl lg:text-4xl font-medium text-center sm:text-right tabular-nums order-3 min-w-0 overflow-hidden truncate">
-            {currentTime}
-          </p>
+          {isSedeMaestra && (
+            <label
+              className={`inline-flex w-fit items-center gap-4 rounded-[1.6rem] border border-white/45 bg-transparent px-8 py-5 text-xl sm:text-2xl text-[#333] dark:text-gray-200 shadow-[0_12px_26px_-12px_rgba(15,23,42,0.65)] transition-opacity duration-300 dark:border-white/15 dark:bg-transparent ${
+                controlsVisible
+                  ? 'opacity-100 pointer-events-auto'
+                  : 'opacity-0 pointer-events-none'
+              }`}
+            >
+              <span className="font-medium whitespace-nowrap">WOD del día</span>
+              <input
+                type="date"
+                value={
+                  selectedWodDate.getFullYear() +
+                  '-' +
+                  String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
+                  '-' +
+                  String(selectedWodDate.getDate()).padStart(2, '0')
+                }
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val) {
+                    const d = new Date(`${val}T12:00:00`)
+                    d.setHours(0, 0, 0, 0)
+                    setSelectedWodDate(d)
+                  }
+                }}
+                className="rounded-xl border border-[#d0d0d0] dark:border-gray-500 bg-white dark:bg-[#2a2a2a] text-[#333] dark:text-gray-200 px-3.5 py-2 text-xl sm:text-2xl focus:outline-none focus:ring-2 focus:ring-[#4A90E2]"
+              />
+            </label>
+          )}
         </div>
-      </header>
+      )}
+      {displayMode === 'tv' && (
+        <div className="pointer-events-none fixed right-2 top-2 z-40 sm:right-3 sm:top-3">
+          <div className="pointer-events-auto inline-flex max-w-[min(38rem,calc(100vw-1rem))] items-center px-8 py-5 sm:px-9 sm:py-5">
+            <p
+              className="text-[#333] dark:text-gray-200 text-xl sm:text-2xl md:text-3xl font-semibold tabular-nums tracking-wide leading-tight text-center"
+              title={`${dateLabel.full} · ${currentTime}`}
+            >
+              <span className="block whitespace-nowrap">
+                {dateLabel.weekday}, {dateLabel.datePart}
+              </span>
+              <span className="mt-1 block whitespace-nowrap">{currentTime}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {displayMode === 'tv' && (
-      <div
-        className={`fixed bottom-2 sm:bottom-3 left-2 sm:left-2 z-50 flex flex-row flex-wrap gap-2 transition-opacity duration-300 pointer-events-none ${
-          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
-        }`}
-      >
-        <fieldset
-          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
-          aria-label="Tamaño de tarjetas"
+        <div
+          className={`fixed bottom-2 sm:bottom-3 left-2 sm:left-2 z-50 flex flex-row flex-wrap gap-2 transition-opacity duration-300 pointer-events-none ${
+            showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0'
+          }`}
         >
-          <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
-            Tamaño tarjetas
-          </legend>
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setCardScale((v) =>
-                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
-                )
-              }
-              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Reducir tamaño de tarjetas"
-            >
-              −
-            </button>
-            <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
-              {cardScale.toFixed(2)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setCardScale((v) =>
-                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
-                )
-              }
-              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Aumentar tamaño de tarjetas"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-        <fieldset
-          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
-          aria-label="Ajuste de interlineado"
-        >
-          <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
-            Interlineado
-          </legend>
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setLineHeightList((v) =>
-                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
-                )
-              }
-              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Reducir interlineado"
-            >
-              −
-            </button>
-            <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
-              {lineHeightList.toFixed(1)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setLineHeightList((v) =>
-                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
-                )
-              }
-              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Aumentar interlineado"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-        <fieldset
-          className="flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]"
-          aria-label="Tamaño de fuente"
-        >
-          <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
-            Tamaño fuente
-          </legend>
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setFontSizeScale((v) =>
-                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
-                )
-              }
-              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Reducir tamaño de fuente"
-            >
-              −
-            </button>
-            <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
-              {fontSizeScale.toFixed(2)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setFontSizeScale((v) =>
-                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
-                )
-              }
-              className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Aumentar tamaño de fuente"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-        <fieldset
-          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
-          aria-label="Tamaño de tarjetas para metcon y strength extensos"
-        >
-          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
-            Tarjetas largas Met/Str
-          </legend>
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                setDenseCardScale((v) =>
-                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
-                )
-              }
-              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Reducir tamaño de tarjetas largas"
-            >
-              −
-            </button>
-            <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
-              {denseCardScale.toFixed(2)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setDenseCardScale((v) =>
-                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
-                )
-              }
-              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Aumentar tamaño de tarjetas largas"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-        <fieldset
-          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
-          aria-label="Interlineado para metcon y strength extensos"
-        >
-          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
-            Interlineado largas Met/Str
-          </legend>
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                setDenseLineHeight((v) =>
-                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
-                )
-              }
-              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Reducir interlineado largas"
-            >
-              −
-            </button>
-            <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
-              {denseLineHeight.toFixed(1)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setDenseLineHeight((v) =>
-                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
-                )
-              }
-              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Aumentar interlineado largas"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-        <fieldset
-          className={`flex flex-col gap-2 rounded-xl bg-white dark:bg-[#3C3C3C] shadow-lg border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
-          aria-label="Tamaño de fuente para metcon y strength extensos"
-        >
-          <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
-            Fuente largas Met/Str
-          </legend>
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() =>
-                setDenseFontSize((v) =>
-                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
-                )
-              }
-              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Reducir tamaño de fuente largas"
-            >
-              −
-            </button>
-            <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
-              {denseFontSize.toFixed(2)}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                setDenseFontSize((v) =>
-                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
-                )
-              }
-              className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-              aria-label="Aumentar tamaño de fuente largas"
-            >
-              +
-            </button>
-          </div>
-        </fieldset>
-      </div>
+          <fieldset
+            className={`flex flex-col gap-2 ${dashboardControlPanel3dClassName} px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]`}
+            aria-label="Tamaño de tarjetas"
+          >
+            <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
+              Tamaño tarjetas
+            </legend>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setCardScale((v) =>
+                    Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                  )
+                }
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Reducir tamaño de tarjetas"
+              >
+                −
+              </button>
+              <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
+                {cardScale.toFixed(2)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCardScale((v) =>
+                    Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                  )
+                }
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Aumentar tamaño de tarjetas"
+              >
+                +
+              </button>
+            </div>
+          </fieldset>
+          <fieldset
+            className={`flex flex-col gap-2 ${dashboardControlPanel3dClassName} px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]`}
+            aria-label="Ajuste de interlineado"
+          >
+            <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
+              Interlineado
+            </legend>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setLineHeightList((v) =>
+                    Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                  )
+                }
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Reducir interlineado"
+              >
+                −
+              </button>
+              <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
+                {lineHeightList.toFixed(1)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setLineHeightList((v) =>
+                    Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                  )
+                }
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Aumentar interlineado"
+              >
+                +
+              </button>
+            </div>
+          </fieldset>
+          <fieldset
+            className={`flex flex-col gap-2 ${dashboardControlPanel3dClassName} px-3 py-3 sm:px-3.5 sm:py-3.5 min-w-[150px] sm:min-w-[175px]`}
+            aria-label="Tamaño de fuente"
+          >
+            <legend className="text-sm sm:text-base font-semibold text-[#333] dark:text-gray-200">
+              Tamaño fuente
+            </legend>
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setFontSizeScale((v) =>
+                    Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                  )
+                }
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Reducir tamaño de fuente"
+              >
+                −
+              </button>
+              <span className="tabular-nums text-base sm:text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.25rem] text-center">
+                {fontSizeScale.toFixed(2)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setFontSizeScale((v) =>
+                    Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                  )
+                }
+                className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-lg font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Aumentar tamaño de fuente"
+              >
+                +
+              </button>
+            </div>
+          </fieldset>
+          <fieldset
+            className={`flex flex-col gap-2 ${dashboardControlPanel3dBlueClassName} px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+            aria-label="Tamaño de tarjetas para metcon y strength extensos"
+          >
+            <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+              Tarjetas largas Met/Str
+            </legend>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setDenseCardScale((v) =>
+                    Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                  )
+                }
+                className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Reducir tamaño de tarjetas largas"
+              >
+                −
+              </button>
+              <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
+                {denseCardScale.toFixed(2)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setDenseCardScale((v) =>
+                    Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                  )
+                }
+                className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Aumentar tamaño de tarjetas largas"
+              >
+                +
+              </button>
+            </div>
+          </fieldset>
+          <fieldset
+            className={`flex flex-col gap-2 ${dashboardControlPanel3dBlueClassName} px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+            aria-label="Interlineado para metcon y strength extensos"
+          >
+            <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+              Interlineado largas Met/Str
+            </legend>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setDenseLineHeight((v) =>
+                    Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                  )
+                }
+                className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Reducir interlineado largas"
+              >
+                −
+              </button>
+              <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
+                {denseLineHeight.toFixed(1)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setDenseLineHeight((v) =>
+                    Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                  )
+                }
+                className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Aumentar interlineado largas"
+              >
+                +
+              </button>
+            </div>
+          </fieldset>
+          <fieldset
+            className={`flex flex-col gap-2 ${dashboardControlPanel3dBlueClassName} px-3 py-3 sm:px-4 sm:py-4 min-w-[160px] sm:min-w-[190px] ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+            aria-label="Tamaño de fuente para metcon y strength extensos"
+          >
+            <legend className="text-base sm:text-lg font-semibold text-[#333] dark:text-gray-200">
+              Fuente largas Met/Str
+            </legend>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  setDenseFontSize((v) =>
+                    Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                  )
+                }
+                className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Reducir tamaño de fuente largas"
+              >
+                −
+              </button>
+              <span className="tabular-nums text-lg sm:text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa] min-w-[2.5rem] text-center">
+                {denseFontSize.toFixed(2)}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setDenseFontSize((v) =>
+                    Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                  )
+                }
+                className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-lg bg-[#4A90E2] hover:bg-[#3A7BC8] active:scale-95 text-white text-xl font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+                aria-label="Aumentar tamaño de fuente largas"
+              >
+                +
+              </button>
+            </div>
+          </fieldset>
+        </div>
       )}
 
       <div
-        className={`fixed bottom-4 sm:bottom-6 z-50 flex flex-row-reverse items-center gap-2 sm:gap-3 transition-opacity duration-300 pointer-events-none ${
+        className={`fixed bottom-4 sm:bottom-6 z-50 flex flex-row-reverse items-center gap-3 sm:gap-4 transition-opacity duration-300 pointer-events-none ${
           displayMode === 'control' && useInfinite
-            ? 'right-28 sm:right-40'
-            : 'right-16 sm:right-24'
+            ? 'right-[13rem] sm:right-[15rem]'
+            : displayMode === 'control'
+              ? 'right-[8.5rem] sm:right-40'
+              : 'right-16 sm:right-24'
         } ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
       >
         {displayMode === 'control' && useInfinite && (
           <button
             type="button"
             onClick={() => setIsPaused((p) => !p)}
-            className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
+            className="flex shrink-0 items-center justify-center h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
             aria-label={isPaused ? 'Reanudar carrusel en TV' : 'Pausar carrusel en TV'}
             aria-pressed={isPaused}
           >
             {isPaused ? (
               <svg
-                className="w-5 h-5 sm:w-6 sm:h-6"
+                className="h-7 w-7 sm:h-8 sm:w-8"
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 aria-hidden
@@ -2072,7 +2296,7 @@ export default function DashboardPage() {
               </svg>
             ) : (
               <svg
-                className="w-5 h-5 sm:w-6 sm:h-6"
+                className="h-7 w-7 sm:h-8 sm:w-8"
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 aria-hidden
@@ -2085,15 +2309,17 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={() => setDisplayMode((m) => (m === 'tv' ? 'control' : 'tv'))}
-          className="flex shrink-0 items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2"
-          aria-label={
-            displayMode === 'tv' ? 'Cambiar a modo control (móvil)' : 'Cambiar a modo TV'
-          }
+          className={`flex shrink-0 items-center justify-center rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 ${
+            displayMode === 'control'
+              ? 'h-14 w-14 sm:h-16 sm:w-16'
+              : 'h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14'
+          }`}
+          aria-label={displayMode === 'tv' ? 'Cambiar a modo control (móvil)' : 'Cambiar a modo TV'}
           title={displayMode === 'tv' ? 'Modo control' : 'Modo TV'}
         >
           {displayMode === 'tv' ? (
             <svg
-              className="w-5 h-5 sm:w-6 sm:h-6"
+              className="h-5 w-5 sm:h-6 sm:w-6"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -2107,7 +2333,7 @@ export default function DashboardPage() {
             </svg>
           ) : (
             <svg
-              className="w-5 h-5 sm:w-6 sm:h-6"
+              className="h-7 w-7 sm:h-8 sm:w-8"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -2127,13 +2353,15 @@ export default function DashboardPage() {
       <button
         type="button"
         onClick={handleLogout}
-        className={`fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
-          controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'
-        }`}
+        className={`fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center justify-center rounded-full bg-[#4A90E2] text-white shadow-lg hover:bg-[#3A7BC8] hover:shadow-xl active:scale-95 transition-all duration-300 pointer-events-none ${
+          displayMode === 'control'
+            ? 'h-14 w-14 sm:h-16 sm:w-16'
+            : 'h-10 w-10 sm:h-12 sm:w-12 md:h-14 md:w-14'
+        } ${controlsVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0'}`}
         aria-label="Cerrar sesión"
       >
         <svg
-          className="w-5 h-5 sm:w-6 sm:h-6"
+          className={displayMode === 'control' ? 'h-7 w-7 sm:h-8 sm:w-8' : 'h-5 w-5 sm:h-6 sm:w-6'}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -2180,7 +2408,13 @@ export default function DashboardPage() {
       )}
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <main className="flex-1 flex flex-col min-h-0 w-full max-w-[98vw] sm:max-w-[95vw] mx-auto p-1 sm:p-[0.3rem] overflow-hidden relative">
+        <main
+          className={`flex-1 flex flex-col min-h-0 w-full overflow-hidden relative ${
+            displayMode === 'tv'
+              ? 'max-w-none mx-0 px-0'
+              : 'max-w-[98vw] sm:max-w-[95vw] mx-auto p-1 sm:p-[0.3rem]'
+          }`}
+        >
           {loading && (
             <div className="flex-1 flex flex-col items-center justify-center min-h-0">
               <div className="w-8 h-8 sm:w-10 sm:h-10 border-4 border-[#f3f3f3] dark:border-gray-700 border-t-[#4A90E2] rounded-full animate-spin" />
@@ -2199,7 +2433,10 @@ export default function DashboardPage() {
           {!loading && !error && (
             <>
               {displayMode === 'control' && (
-                <div className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto p-4 pb-28 sm:p-6 sm:pb-32">
+                <div
+                  className="absolute inset-0 flex w-full flex-col items-stretch overflow-y-auto [&::-webkit-scrollbar]:hidden p-4 pb-36 sm:p-6 sm:pb-40"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
                   {showLongContentHintModal && (
                     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4">
                       <div className="w-full max-w-md rounded-2xl border border-blue-200 bg-white p-5 shadow-2xl dark:border-blue-800 dark:bg-[#2f2f2f]">
@@ -2207,8 +2444,7 @@ export default function DashboardPage() {
                           Hay tarjetas con mucho contenido
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-[#555] dark:text-gray-300">
-                          Puedes ajustarlas con los parametros
-                          {' '}
+                          Puedes ajustarlas con los parametros{' '}
                           <span className="font-semibold text-[#333] dark:text-gray-100">
                             &quot;Largas Met/Str&quot;
                           </span>
@@ -2226,12 +2462,40 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-                  <div className="mx-auto w-full max-w-md flex flex-col gap-4 rounded-2xl border border-[#d0d0d0] dark:border-gray-600 bg-white dark:bg-[#3C3C3C] p-4 sm:p-5 shadow-sm">
+                  <div
+                    className={`mx-auto w-full max-w-md flex flex-col gap-4 p-4 sm:p-5 ${dashboardControlMainCardClassName}`}
+                  >
                     <div>
-                      <h2 className="text-lg font-bold text-[#333] dark:text-gray-100">Modo control</h2>
+                      <h2 className="text-lg font-bold text-[#333] dark:text-gray-100">
+                        Modo control
+                      </h2>
                       <p className="mt-1 text-xs text-[#666] dark:text-gray-400">
                         Mismo usuario admin que la TV · Flechas o deslizar para cambiar de sección
                       </p>
+                      {isSedeMaestra && (
+                        <label className="mt-3 inline-flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white/70 px-3 py-2 text-sm text-[#333] dark:border-gray-600 dark:bg-[#2a2a2a] dark:text-gray-200 sm:text-base">
+                          <span className="font-medium whitespace-nowrap">WOD del día</span>
+                          <input
+                            type="date"
+                            value={
+                              selectedWodDate.getFullYear() +
+                              '-' +
+                              String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
+                              '-' +
+                              String(selectedWodDate.getDate()).padStart(2, '0')
+                            }
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val) {
+                                const d = new Date(`${val}T12:00:00`)
+                                d.setHours(0, 0, 0, 0)
+                                setSelectedWodDate(d)
+                              }
+                            }}
+                            className="rounded-md border border-[#d0d0d0] bg-white px-2 py-1 text-sm text-[#333] focus:outline-none focus:ring-2 focus:ring-[#4A90E2] dark:border-gray-500 dark:bg-[#2a2a2a] dark:text-gray-200 sm:text-base"
+                          />
+                        </label>
+                      )}
                       <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-600 bg-[#f0f4f8] dark:bg-[#2a2a2a]">
                         {len === 0 ? (
                           <p className="px-4 py-8 text-center text-sm text-[#666] dark:text-gray-400">
@@ -2245,16 +2509,16 @@ export default function DashboardPage() {
                           </div>
                         ) : (
                           <>
-                            <div className="flex min-h-[5.5rem] items-stretch gap-1 px-1 py-1 sm:gap-1.5 sm:px-1.5">
+                            <div className="flex min-h-[5.5rem] items-stretch gap-1 px-1 py-1 sm:min-h-[5.5rem] sm:gap-1.5 sm:px-1.5">
                               <button
                                 type="button"
                                 onClick={goPrev}
                                 disabled={!useInfinite}
-                                className="flex w-9 shrink-0 items-center justify-center self-center rounded-lg bg-[#4A90E2] text-white shadow-sm hover:bg-[#3A7BC8] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:w-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2a2a2a]"
+                                className={`flex w-12 shrink-0 items-center justify-center self-stretch sm:w-14 md:w-16 ${carouselArrowButtonSurfaceClassName} disabled:pointer-events-none disabled:opacity-35`}
                                 aria-label="Sección anterior"
                               >
                                 <svg
-                                  className="h-6 w-6"
+                                  className={carouselArrowIconClassNameControl}
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   stroke="currentColor"
@@ -2274,30 +2538,34 @@ export default function DashboardPage() {
                                 aria-label="Secciones del WOD. Flechas o deslizar para cambiar."
                               >
                                 <div className="flex min-h-[5rem]">
-                                  {controlNameSlideEntries.map(({ slideSection: s, renderKey }, idx) => (
-                                    <div
-                                      key={renderKey}
-                                      className="flex w-full min-w-full shrink-0 snap-center items-center justify-center px-2 py-4 sm:px-4 sm:py-6"
-                                    >
-                                      <p
-                                        className="text-center text-base font-bold uppercase tracking-wide text-[#333] dark:text-gray-100 sm:text-lg"
-                                        aria-current={idx === controlStripLogicalIndex ? 'true' : undefined}
+                                  {controlNameSlideEntries.map(
+                                    ({ slideSection: s, renderKey }, idx) => (
+                                      <div
+                                        key={renderKey}
+                                        className="flex w-full min-w-full shrink-0 snap-center items-center justify-center px-2 py-4 sm:px-4 sm:py-6"
                                       >
-                                        {s.label}
-                                      </p>
-                                    </div>
-                                  ))}
+                                        <p
+                                          className="text-center text-base font-bold uppercase tracking-wide text-[#333] dark:text-gray-100 sm:text-lg"
+                                          aria-current={
+                                            idx === controlStripLogicalIndex ? 'true' : undefined
+                                          }
+                                        >
+                                          {s.label}
+                                        </p>
+                                      </div>
+                                    )
+                                  )}
                                 </div>
                               </section>
                               <button
                                 type="button"
                                 onClick={goNext}
                                 disabled={!useInfinite}
-                                className="flex w-9 shrink-0 items-center justify-center self-center rounded-lg bg-[#4A90E2] text-white shadow-sm hover:bg-[#3A7BC8] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-35 sm:w-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-[#2a2a2a]"
+                                className={`flex w-12 shrink-0 items-center justify-center self-stretch sm:w-14 md:w-16 ${carouselArrowButtonSurfaceClassName} disabled:pointer-events-none disabled:opacity-35`}
                                 aria-label="Sección siguiente"
                               >
                                 <svg
-                                  className="h-6 w-6"
+                                  className={carouselArrowIconClassNameControl}
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   stroke="currentColor"
@@ -2318,10 +2586,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <details className="group rounded-xl border border-gray-200 dark:border-gray-600 bg-white/50 dark:bg-[#353535]/80 open:border-[#4A90E2]/40 dark:open:border-[#60a5fa]/35">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-3 text-sm font-semibold text-[#333] dark:text-gray-200 [&::-webkit-details-marker]:hidden">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-4 text-base font-semibold text-[#333] dark:text-gray-200 [&::-webkit-details-marker]:hidden">
                         <span>Parámetros de pantalla</span>
                         <svg
-                          className="h-5 w-5 shrink-0 text-[#4A90E2] transition-transform duration-200 group-open:rotate-180 dark:text-[#60a5fa]"
+                          className="h-7 w-7 shrink-0 text-[#4A90E2] transition-transform duration-200 group-open:rotate-180 dark:text-[#60a5fa]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -2333,205 +2601,247 @@ export default function DashboardPage() {
                           <polyline points="6 9 12 15 18 9" />
                         </svg>
                       </summary>
-                      <div className="flex flex-col gap-3 border-t border-gray-200 px-2 pb-3 pt-2 dark:border-gray-600">
-                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                      <div className="flex flex-col gap-4 border-t border-gray-200 px-2 pb-4 pt-3 dark:border-gray-600">
+                        <fieldset className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-4 sm:py-4">
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Tamaño tarjetas
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
                                 setCardScale((v) =>
-                                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                                  Math.max(
+                                    CARD_SCALE_MIN,
+                                    Math.round((v - CARD_SCALE_STEP) * 100) / 100
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de tarjetas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {cardScale.toFixed(2)}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 setCardScale((v) =>
-                                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                                  Math.min(
+                                    CARD_SCALE_MAX,
+                                    Math.round((v + CARD_SCALE_STEP) * 100) / 100
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de tarjetas"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-4 sm:py-4">
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Interlineado
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
                                 setLineHeightList((v) =>
-                                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                                  Math.max(
+                                    LINE_HEIGHT_MIN,
+                                    Math.round((v - LINE_HEIGHT_STEP) * 10) / 10
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir interlineado"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {lineHeightList.toFixed(1)}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 setLineHeightList((v) =>
-                                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                                  Math.min(
+                                    LINE_HEIGHT_MAX,
+                                    Math.round((v + LINE_HEIGHT_STEP) * 10) / 10
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar interlineado"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className="flex flex-col gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3">
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset className="flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-3 sm:px-4 sm:py-4">
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Tamaño fuente
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
                                 setFontSizeScale((v) =>
-                                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                                  Math.max(
+                                    FONT_SIZE_MIN,
+                                    Math.round((v - FONT_SIZE_STEP) * 1000) / 1000
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de fuente"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {fontSizeScale.toFixed(2)}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 setFontSizeScale((v) =>
-                                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                                  Math.min(
+                                    FONT_SIZE_MAX,
+                                    Math.round((v + FONT_SIZE_STEP) * 1000) / 1000
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de fuente"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset
+                          className={`flex flex-col gap-3 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+                        >
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Tarjetas largas Met/Str
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
                                 setDenseCardScale((v) =>
-                                  Math.max(CARD_SCALE_MIN, Math.round((v - CARD_SCALE_STEP) * 100) / 100)
+                                  Math.max(
+                                    CARD_SCALE_MIN,
+                                    Math.round((v - CARD_SCALE_STEP) * 100) / 100
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de tarjetas largas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {denseCardScale.toFixed(2)}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 setDenseCardScale((v) =>
-                                  Math.min(CARD_SCALE_MAX, Math.round((v + CARD_SCALE_STEP) * 100) / 100)
+                                  Math.min(
+                                    CARD_SCALE_MAX,
+                                    Math.round((v + CARD_SCALE_STEP) * 100) / 100
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de tarjetas largas"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset
+                          className={`flex flex-col gap-3 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+                        >
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Interlineado largas Met/Str
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
                                 setDenseLineHeight((v) =>
-                                  Math.max(LINE_HEIGHT_MIN, Math.round((v - LINE_HEIGHT_STEP) * 10) / 10)
+                                  Math.max(
+                                    LINE_HEIGHT_MIN,
+                                    Math.round((v - LINE_HEIGHT_STEP) * 10) / 10
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir interlineado largas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {denseLineHeight.toFixed(1)}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 setDenseLineHeight((v) =>
-                                  Math.min(LINE_HEIGHT_MAX, Math.round((v + LINE_HEIGHT_STEP) * 10) / 10)
+                                  Math.min(
+                                    LINE_HEIGHT_MAX,
+                                    Math.round((v + LINE_HEIGHT_STEP) * 10) / 10
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar interlineado largas"
                             >
                               +
                             </button>
                           </div>
                         </fieldset>
-                        <fieldset className={`flex flex-col gap-2 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}>
-                          <legend className="px-1 text-sm font-semibold text-[#333] dark:text-gray-200">
+                        <fieldset
+                          className={`flex flex-col gap-3 rounded-xl border border-blue-200 dark:border-blue-800 px-3 py-3 sm:px-4 sm:py-4 ${hasLongMetconOrStrengthSections ? '' : 'hidden'}`}
+                        >
+                          <legend className="px-1 text-base font-semibold text-[#333] dark:text-gray-200">
                             Fuente largas Met/Str
                           </legend>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
                               onClick={() =>
                                 setDenseFontSize((v) =>
-                                  Math.max(FONT_SIZE_MIN, Math.round((v - FONT_SIZE_STEP) * 1000) / 1000)
+                                  Math.max(
+                                    FONT_SIZE_MIN,
+                                    Math.round((v - FONT_SIZE_STEP) * 1000) / 1000
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Reducir tamaño de fuente largas"
                             >
                               −
                             </button>
-                            <span className="tabular-nums text-lg font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
+                            <span className="tabular-nums text-xl font-semibold text-[#4A90E2] dark:text-[#60a5fa]">
                               {denseFontSize.toFixed(2)}
                             </span>
                             <button
                               type="button"
                               onClick={() =>
                                 setDenseFontSize((v) =>
-                                  Math.min(FONT_SIZE_MAX, Math.round((v + FONT_SIZE_STEP) * 1000) / 1000)
+                                  Math.min(
+                                    FONT_SIZE_MAX,
+                                    Math.round((v + FONT_SIZE_STEP) * 1000) / 1000
+                                  )
                                 )
                               }
-                              className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#4A90E2] text-lg font-bold text-white"
+                              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#4A90E2] text-2xl font-bold text-white active:scale-[0.98] sm:h-16 sm:w-16"
                               aria-label="Aumentar tamaño de fuente largas"
                             >
                               +
@@ -2544,256 +2854,96 @@ export default function DashboardPage() {
                 </div>
               )}
               {displayMode === 'tv' && (
-            <div className="absolute inset-0 flex min-h-0 flex-col items-stretch overflow-hidden p-1 sm:p-[0.3rem]">
-              {noWodForSelectedDate && (
-                <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 sm:p-6 md:p-8 rounded-lg max-w-lg text-center text-sm sm:text-base md:text-xl lg:text-2xl">
-                  No hay WOD para la fecha seleccionada. Elige otro día.
-                </div>
-              )}
-              {showFallbackMessage && !noWodForSelectedDate && (
-                <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-2 sm:p-3 md:p-4 rounded-lg mb-2 sm:mb-3 md:mb-4 text-center text-xs sm:text-sm md:text-xl lg:text-3xl">
-                  ⚠️ No hay WOD programado para hoy.{' '}
-                  {wods.length > 1 ? 'Mostrando WODs recientes.' : 'Mostrando el WOD más reciente.'}
-                </div>
-              )}
-              {currentWod && !noWodForSelectedDate && (
-                <div className="bg-white rounded-lg border border-[#c4c4c4] p-3 sm:p-4 md:p-6 mb-3 sm:mb-4 md:mb-6 hidden">
-                  <h2 className="font-bold text-2xl sm:text-4xl md:text-6xl lg:text-9xl text-[#333] mb-1 sm:mb-2">
-                    {currentWod.title || 'WOD'}
-                  </h2>
-                  {currentWod.description && (
-                    <p className="text-[#666] text-xl sm:text-3xl md:text-5xl lg:text-8xl leading-relaxed m-0">
-                      {currentWod.description}
-                    </p>
+                <div className="absolute inset-0 flex min-h-0 flex-col items-stretch overflow-hidden p-1 sm:p-[0.3rem]">
+                  {noWodForSelectedDate && (
+                    <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-4 sm:p-6 md:p-8 rounded-lg max-w-lg text-center text-sm sm:text-base md:text-xl lg:text-2xl">
+                      No hay WOD para la fecha seleccionada. Elige otro día.
+                    </div>
                   )}
-                </div>
-              )}
-              {!noWodForSelectedDate && (
-                <section
-                  className="relative flex min-h-0 flex-1 flex-col overflow-hidden w-full max-w-9xl mx-auto"
-                  aria-roledescription="carrusel"
-                  aria-label="Carrusel de secciones del WOD del día"
-                >
-                  {useInfinite && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={goPrev}
-                        className={`absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-28 h-56 sm:w-32 sm:h-64 md:w-40 md:h-80 rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200 ${
-                          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                        }`}
-                        aria-label="Sección anterior"
-                      >
-                        <svg
-                          className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <polyline points="15 18 9 12 15 6" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={goNext}
-                        className={`absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-28 h-56 sm:w-32 sm:h-64 md:w-40 md:h-80 rounded-lg bg-white/25 dark:bg-black/25 text-[#333] dark:text-gray-100 border border-white/30 dark:border-white/10 shadow-sm hover:bg-white/45 dark:hover:bg-black/45 hover:border-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4A90E2] focus-visible:ring-offset-2 active:scale-[0.98] transition-all duration-200 ${
-                          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                        }`}
-                        aria-label="Sección siguiente"
-                      >
-                        <svg
-                          className="w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w-20 md:h-20"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
-                    </>
+                  {showFallbackMessage && !noWodForSelectedDate && (
+                    <div className="bg-[#fff3cd] dark:bg-amber-900/30 text-[#856404] dark:text-amber-200 p-2 sm:p-3 md:p-4 rounded-lg mb-2 sm:mb-3 md:mb-4 text-center text-xs sm:text-sm md:text-xl lg:text-3xl">
+                      ⚠️ No hay WOD programado para hoy.{' '}
+                      {wods.length > 1
+                        ? 'Mostrando WODs recientes.'
+                        : 'Mostrando el WOD más reciente.'}
+                    </div>
                   )}
-                  <div
-                    className="flex h-full min-h-0 w-full flex-1"
-                    style={{
-                      transform: `translateX(-${currentIndex * 100}%)`,
-                      transition:
-                        useInfinite && !skipTransition ? 'transform 0.4s ease-out' : 'none',
-                    }}
-                    onTransitionEnd={handleTransitionEnd}
-                  >
-                    {slidesToRender.map((slideSection, index) => {
-                      if (slideSection.type === 'dual-section') {
-                        const tvLayout = resolveTvSlideDensityLayout(
-                          slideSection,
-                          lineHeightList,
-                          fontSizeScale,
-                          cardScale,
-                          denseLineHeight,
-                          denseFontSize,
-                          denseCardScale
-                        )
-                        return (
-                          <section
-                            key={slideSection.renderKey}
-                            className="flex-[0_0_100%] min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
-                            aria-label={
-                              useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
-                            }
-                            aria-hidden={useInfinite ? index !== currentIndex : undefined}
+                  {currentWod && !noWodForSelectedDate && (
+                    <div className="bg-white rounded-lg border border-[#c4c4c4] p-3 sm:p-4 md:p-6 mb-3 sm:mb-4 md:mb-6 hidden">
+                      <h2 className="font-bold text-2xl sm:text-4xl md:text-6xl lg:text-9xl text-[#333] mb-1 sm:mb-2">
+                        {currentWod.title || 'WOD'}
+                      </h2>
+                      {currentWod.description && (
+                        <p className="text-[#666] text-xl sm:text-3xl md:text-5xl lg:text-8xl leading-relaxed m-0">
+                          {currentWod.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {!noWodForSelectedDate && (
+                    <section
+                      className="relative flex min-h-0 flex-1 flex-col overflow-hidden w-full max-w-9xl mx-auto"
+                      aria-roledescription="carrusel"
+                      aria-label="Carrusel de secciones del WOD del día"
+                    >
+                      {useInfinite && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={goPrev}
+                            className={`absolute left-1 top-1/2 z-10 flex h-56 w-28 -translate-y-1/2 items-center justify-center sm:left-2 sm:h-64 sm:w-32 md:h-80 md:w-40 ${carouselArrowButtonSurfaceClassName} ${
+                              showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+                            }`}
+                            aria-label="Sección anterior"
                           >
-                            <div
-                              className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
-                              style={{
-                                width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
-                                transform: `scale(${tvLayout.cardScale})`,
-                                transformOrigin: 'center center',
-                              }}
+                            <svg
+                              className={carouselArrowIconClassNameTv}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
                             >
-                              <DualSectionSlide
-                                label={slideSection.label}
-                                crossfitLines={slideSection.crossfitLines}
-                                functionalLines={slideSection.functionalLines}
-                                lineHeight={tvLayout.lineHeight}
-                                fontSize={tvLayout.fontSize}
-                                className="w-full shrink-0"
-                              />
-                            </div>
-                          </section>
-                        )
-                      }
-
-                      const isMetcon = slideSection.label.toUpperCase().startsWith('METCON')
-                      const isFuerza = slideSection.label === 'STRENGTH'
-                      const metconCards =
-                        isMetcon && slideSection.type === 'section'
-                          ? (() => {
-                              const items = slideSection.lines
-                                .map((l) => l.trim().replace(/^[•-]\s*/, ''))
-                                .filter(Boolean)
-                              if (items.length === 0) return null
-                              const firstLine = items[0]
-                              // Si la primera línea contiene "round" se muestra una sola card con ancho reducido
-                              if (firstLine.toLowerCase().includes('round')) return null
-                              const restLines = items.slice(1)
-                              const blocksFromRest = buildBlocks(restLines)
-                              const blocksFromAll = buildBlocks(items)
-                              const hasEnduranceBlock = blocksFromAll.some(
-                                (b) => b.title === BLOCK_TITLE_ENDURANCE
-                              )
-                              if (hasEnduranceBlock) {
-                                const enduranceBlock = blocksFromAll.find(
-                                  (b) => b.title === BLOCK_TITLE_ENDURANCE
-                                )
-                                const lines = enduranceBlock ? enduranceBlock.lines : items
-                                return [
-                                  {
-                                    label: slideSection.label,
-                                    lines,
-                                    layout: 'endurance' as const,
-                                  },
-                                ]
-                              }
-                              const blocks = blocksFromRest
-                              if (blocks.length === 0) return null
-                              if (blocks.length === 1) {
-                                const b = blocks[0]
-                                const mid = Math.ceil(b.lines.length / 2)
-                                const titleLine =
-                                  b.title === 'Sollte funcional'
-                                    ? ['Sollte funcional:']
-                                    : b.title === 'Accesorios:'
-                                      ? ['Accesorios:']
-                                      : []
-                                return [
-                                  {
-                                    label: slideSection.label,
-                                    lines: [firstLine, ...titleLine, ...b.lines.slice(0, mid)],
-                                  },
-                                  {
-                                    label: slideSection.label,
-                                    lines: [firstLine, ...titleLine, ...b.lines.slice(mid)],
-                                  },
-                                ]
-                              }
-                              const mid = Math.ceil(blocks.length / 2)
-                              return [
-                                {
-                                  label: slideSection.label,
-                                  lines: [firstLine, ...blocksToLines(blocks.slice(0, mid))],
-                                },
-                                {
-                                  label: slideSection.label,
-                                  lines: [firstLine, ...blocksToLines(blocks.slice(mid))],
-                                },
-                              ]
-                            })()
-                          : null
-                      const fuerzaCards =
-                        isFuerza && slideSection.type === 'section'
-                          ? (() => {
-                              const items = slideSection.lines
-                                .map((l) => l.trim().replace(/^[•-]\s*/, ''))
-                                .filter(Boolean)
-                              if (items.length === 0) return null
-                              const firstLine = items[0]
-                              // Si el título contiene "Fortalecimiento:" se muestra una sola card con todo el contenido
-                              if (firstLine.includes('Fortalecimiento:')) return null
-                              const restLines = items.slice(1)
-                              const blocks = buildBlocks(restLines)
-                              const crossfitBlock = blocks.find(
-                                (b) => b.title === 'Crossfit' || b.title === null
-                              )
-                              const sollteBlock = blocks.find((b) => b.title === 'Sollte funcional')
-                              return [
-                                {
-                                  label: slideSection.label,
-                                  lines: [firstLine, ...(crossfitBlock?.lines ?? [])],
-                                },
-                                {
-                                  label: slideSection.label,
-                                  lines: ['Sollte Funcional', ...(sollteBlock?.lines ?? [])],
-                                },
-                              ]
-                            })()
-                          : null
-                      const twoCards =
-                        metconCards && metconCards.length === 2
-                          ? metconCards
-                          : fuerzaCards && fuerzaCards.length === 2
-                            ? fuerzaCards
-                            : null
-                      const singleEnduranceCard =
-                        metconCards?.length === 1 &&
-                        'layout' in metconCards[0] &&
-                        metconCards[0].layout === 'endurance'
-                          ? metconCards[0]
-                          : null
-                      const isFuerzaFortalecimientoSingle =
-                        isFuerza &&
-                        slideSection.type === 'section' &&
-                        slideSection.lines[0]?.trim().includes('Fortalecimiento:')
-                      const isMetconRoundSingle =
-                        isMetcon &&
-                        slideSection.type === 'section' &&
-                        slideSection.lines[0]?.trim().toLowerCase().includes('round')
-                      return (
-                        <section
-                          key={slideSection.renderKey}
-                          className="flex-[0_0_100%] min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center"
-                          aria-label={
-                            useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
-                          }
-                          aria-hidden={useInfinite ? index !== currentIndex : undefined}
-                        >
-                          {(() => {
+                              <polyline points="15 18 9 12 15 6" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={goNext}
+                            className={`absolute right-1 top-1/2 z-10 flex h-56 w-28 -translate-y-1/2 items-center justify-center sm:right-2 sm:h-64 sm:w-32 md:h-80 md:w-40 ${carouselArrowButtonSurfaceClassName} ${
+                              showControls ? 'opacity-100' : 'pointer-events-none opacity-0'
+                            }`}
+                            aria-label="Sección siguiente"
+                          >
+                            <svg
+                              className={carouselArrowIconClassNameTv}
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
+                            >
+                              <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                      <div className="relative h-full min-h-0 w-full flex-1">
+                        {slidesToRender.map((slideSection, index) => {
+                          const isActive = index === currentIndex
+                          // Renderizar slide actual y slides adyacentes para fade suave
+                          const shouldRender =
+                            !useInfinite ||
+                            index === currentIndex ||
+                            Math.abs(index - currentIndex) === 1 ||
+                            (currentIndex === 0 && index === len - 1) ||
+                            (currentIndex === len - 1 && index === 0)
+                          if (!shouldRender) return null
+                          if (slideSection.type === 'dual-section') {
                             const tvLayout = resolveTvSlideDensityLayout(
                               slideSection,
                               lineHeightList,
@@ -2803,114 +2953,329 @@ export default function DashboardPage() {
                               denseFontSize,
                               denseCardScale
                             )
-                            const singleCardWidth = getCardWidthPercent({
-                              cardScale: tvLayout.cardScale,
-                              lineHeight: tvLayout.lineHeight,
-                              fontSizeScale: tvLayout.fontSize,
-                              dual: false,
-                            })
-                            const dualCardWidth = getCardWidthPercent({
-                              cardScale: tvLayout.cardScale,
-                              lineHeight: tvLayout.lineHeight,
-                              fontSizeScale: tvLayout.fontSize,
-                              dual: true,
-                            })
-                            const dynamicGapPx = clamp(8 * tvLayout.cardScale, 6, 20)
-
                             return (
-                          <div
-                            className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto py-1 sm:py-2"
-                            style={{
-                              width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
-                              transform: `scale(${tvLayout.cardScale})`,
-                              transformOrigin: 'center center',
-                            }}
-                          >
-                            {singleEnduranceCard ? (
-                              <div
-                                className="mx-auto flex w-full shrink-0 flex-col sm:max-w-5xl"
-                                style={{ maxWidth: `${singleCardWidth}%` }}
+                              <section
+                                key={slideSection.renderKey}
+                                className="absolute inset-0 min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center transition-opacity duration-700 ease-in-out"
+                                style={{
+                                  opacity: isActive ? 1 : 0,
+                                  pointerEvents: isActive ? 'auto' : 'none',
+                                }}
+                                aria-label={
+                                  useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
+                                }
+                                aria-hidden={!isActive}
                               >
-                                <SectionSlide
-                                  label={singleEnduranceCard.label}
-                                  lines={singleEnduranceCard.lines}
-                                  lineHeight={tvLayout.lineHeight}
-                                  fontSize={tvLayout.fontSize}
-                                  className="w-full shrink-0"
-                                />
-                              </div>
-                            ) : twoCards ? (
-                              <div
-                                className="mx-auto flex w-full min-h-0 max-w-full shrink-0 flex-col gap-2 sm:gap-2.5"
-                                style={{ maxWidth: `${dualCardWidth}%` }}
-                              >
-                                <DualColumnSectionHeader label={slideSection.label} />
                                 <div
-                                  className="flex min-h-0 w-full flex-1 items-stretch"
-                                  style={{ gap: `${dynamicGapPx}px` }}
+                                  className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto [&::-webkit-scrollbar]:hidden py-1 sm:py-2"
+                                  style={{
+                                    width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
+                                    transform: `scale(${tvLayout.cardScale})`,
+                                    transformOrigin: 'center center',
+                                    scrollbarWidth: 'none',
+                                    msOverflowStyle: 'none',
+                                  }}
                                 >
-                                  {twoCards.map((card) => (
-                                    <div
-                                      key={`${card.label}-${card.lines.join('|')}`}
-                                      className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch"
-                                    >
+                                  <DualSectionSlide
+                                    label={slideSection.label}
+                                    crossfitLines={slideSection.crossfitLines}
+                                    functionalLines={slideSection.functionalLines}
+                                    lineHeight={tvLayout.lineHeight}
+                                    fontSize={tvLayout.fontSize}
+                                    className="w-full shrink-0"
+                                  />
+                                </div>
+                              </section>
+                            )
+                          }
+
+                          const isMetcon = slideSection.label.toUpperCase().startsWith('METCON')
+                          const isFuerza = slideSection.label === 'STRENGTH'
+                          const metconCards =
+                            isMetcon && slideSection.type === 'section'
+                              ? (() => {
+                                  const items = slideSection.lines
+                                    .map((l) => l.trim().replace(/^[•-]\s*/, ''))
+                                    .filter(Boolean)
+                                  if (items.length === 0) return null
+                                  const firstLine = items[0]
+                                  // Si la primera línea contiene "round" se muestra una sola card con ancho reducido
+                                  if (firstLine.toLowerCase().includes('round')) return null
+                                  const restLines = items.slice(1)
+                                  const blocksFromRest = buildBlocks(restLines)
+                                  const blocksFromAll = buildBlocks(items)
+                                  const hasEnduranceBlock = blocksFromAll.some(
+                                    (b) => b.title === BLOCK_TITLE_ENDURANCE
+                                  )
+                                  if (hasEnduranceBlock) {
+                                    const enduranceBlock = blocksFromAll.find(
+                                      (b) => b.title === BLOCK_TITLE_ENDURANCE
+                                    )
+                                    const lines = enduranceBlock ? enduranceBlock.lines : items
+                                    return [
+                                      {
+                                        label: slideSection.label,
+                                        lines,
+                                        layout: 'endurance' as const,
+                                      },
+                                    ]
+                                  }
+                                  const blocks = blocksFromRest
+                                  if (blocks.length === 0) return null
+                                  if (blocks.length === 1) {
+                                    const b = blocks[0]
+                                    // Evita duplicar "Crossfit" en dual cuando METCON solo trae una descripción
+                                    // (functionalDescription null): en ese caso se renderiza como una sola columna.
+                                    if (b.title == null) return null
+                                    const mid = Math.ceil(b.lines.length / 2)
+                                    const titleLine =
+                                      b.title === 'Sollte funcional'
+                                        ? ['Sollte funcional:']
+                                        : b.title === 'Accesorios:'
+                                          ? ['Accesorios:']
+                                          : []
+                                    return [
+                                      {
+                                        label: slideSection.label,
+                                        lines: [firstLine, ...titleLine, ...b.lines.slice(0, mid)],
+                                      },
+                                      {
+                                        label: slideSection.label,
+                                        lines: [firstLine, ...titleLine, ...b.lines.slice(mid)],
+                                      },
+                                    ]
+                                  }
+                                  const mid = Math.ceil(blocks.length / 2)
+                                  return [
+                                    {
+                                      label: slideSection.label,
+                                      lines: [firstLine, ...blocksToLines(blocks.slice(0, mid))],
+                                    },
+                                    {
+                                      label: slideSection.label,
+                                      lines: [firstLine, ...blocksToLines(blocks.slice(mid))],
+                                    },
+                                  ]
+                                })()
+                              : null
+                          const fuerzaCards =
+                            isFuerza && slideSection.type === 'section'
+                              ? (() => {
+                                  const items = slideSection.lines
+                                    .map((l) => l.trim().replace(/^[•-]\s*/, ''))
+                                    .filter(Boolean)
+                                  if (items.length === 0) return null
+                                  const firstLine = items[0]
+                                  // Si el título contiene "Fortalecimiento:" se muestra una sola card con todo el contenido
+                                  if (firstLine.includes('Fortalecimiento:')) return null
+                                  const restLines = items.slice(1)
+                                  const blocks = buildBlocks(restLines)
+                                  const crossfitBlock = blocks.find(
+                                    (b) => b.title === 'Crossfit' || b.title === null
+                                  )
+                                  const sollteBlock = blocks.find(
+                                    (b) => b.title === 'Sollte funcional'
+                                  )
+                                  return [
+                                    {
+                                      label: slideSection.label,
+                                      lines: [firstLine, ...(crossfitBlock?.lines ?? [])],
+                                    },
+                                    {
+                                      label: slideSection.label,
+                                      lines: ['Sollte Funcional', ...(sollteBlock?.lines ?? [])],
+                                    },
+                                  ]
+                                })()
+                              : null
+                          const twoCards =
+                            metconCards && metconCards.length === 2
+                              ? metconCards
+                              : fuerzaCards && fuerzaCards.length === 2
+                                ? fuerzaCards
+                                : null
+                          const singleEnduranceCard =
+                            metconCards?.length === 1 &&
+                            'layout' in metconCards[0] &&
+                            metconCards[0].layout === 'endurance'
+                              ? metconCards[0]
+                              : null
+                          const isFuerzaFortalecimientoSingle =
+                            isFuerza &&
+                            slideSection.type === 'section' &&
+                            slideSection.lines[0]?.trim().includes('Fortalecimiento:')
+                          const isMetconRoundSingle =
+                            isMetcon &&
+                            slideSection.type === 'section' &&
+                            slideSection.lines[0]?.trim().toLowerCase().includes('round')
+                          return (
+                            <section
+                              key={slideSection.renderKey}
+                              className="absolute inset-0 min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center transition-opacity duration-700 ease-in-out"
+                              style={{
+                                opacity: isActive ? 1 : 0,
+                                pointerEvents: isActive ? 'auto' : 'none',
+                              }}
+                              aria-label={
+                                useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
+                              }
+                              aria-hidden={!isActive}
+                            >
+                              {(() => {
+                                const tvLayout = resolveTvSlideDensityLayout(
+                                  slideSection,
+                                  lineHeightList,
+                                  fontSizeScale,
+                                  cardScale,
+                                  denseLineHeight,
+                                  denseFontSize,
+                                  denseCardScale
+                                )
+                                const singleCardWidth = getCardWidthPercent({
+                                  cardScale: tvLayout.cardScale,
+                                  lineHeight: tvLayout.lineHeight,
+                                  fontSizeScale: tvLayout.fontSize,
+                                  dual: false,
+                                })
+                                const dualCardWidth = getCardWidthPercent({
+                                  cardScale: tvLayout.cardScale,
+                                  lineHeight: tvLayout.lineHeight,
+                                  fontSizeScale: tvLayout.fontSize,
+                                  dual: true,
+                                })
+                                const dynamicGapPx = clamp(5 * tvLayout.cardScale, 3, 12)
+
+                                return (
+                                  <div
+                                    className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto [&::-webkit-scrollbar]:hidden py-1 sm:py-2"
+                                    style={{
+                                      width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
+                                      transform: `scale(${tvLayout.cardScale})`,
+                                      transformOrigin: 'center center',
+                                      scrollbarWidth: 'none',
+                                      msOverflowStyle: 'none',
+                                    }}
+                                  >
+                                    {singleEnduranceCard ? (
+                                      <div
+                                        className="mx-auto flex w-full shrink-0 flex-col sm:max-w-5xl"
+                                        style={{ maxWidth: `${singleCardWidth}%` }}
+                                      >
+                                        <SectionSlide
+                                          label={singleEnduranceCard.label}
+                                          lines={singleEnduranceCard.lines}
+                                          lineHeight={tvLayout.lineHeight}
+                                          fontSize={tvLayout.fontSize}
+                                          className="w-full shrink-0"
+                                        />
+                                      </div>
+                                    ) : twoCards ? (
+                                      <div
+                                        className="ml-0 mr-auto flex w-full min-h-0 max-w-full shrink-0 flex-col gap-2 sm:gap-2.5"
+                                        style={{ maxWidth: `${dualCardWidth}%` }}
+                                      >
+                                        <DualColumnSectionHeader label={slideSection.label} />
+                                        <div
+                                          className="flex min-h-0 w-full flex-1 items-stretch"
+                                          style={{ gap: `${dynamicGapPx}px` }}
+                                        >
+                                          {twoCards.map((card) => (
+                                            <div
+                                              key={`${card.label}-${card.lines.join('|')}`}
+                                              className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch"
+                                            >
+                                              <SectionSlide
+                                                label={card.label}
+                                                lines={card.lines}
+                                                lineHeight={tvLayout.lineHeight}
+                                                fontSize={tvLayout.fontSize}
+                                                hideVerticalLabel
+                                                className="mx-0 h-full min-h-0 w-full min-w-0 max-w-none flex-1 self-stretch"
+                                              />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : isFuerzaFortalecimientoSingle || isMetconRoundSingle ? (
+                                      <div
+                                        className="mx-auto flex w-full shrink-0 flex-col sm:max-w-4xl"
+                                        style={{ maxWidth: `${singleCardWidth}%` }}
+                                      >
+                                        <SectionSlide
+                                          label={slideSection.label}
+                                          lines={
+                                            slideSection.type === 'section' &&
+                                            isMetconRoundSingle &&
+                                            slideSection.lines[0]?.trim() === 'Crossfit'
+                                              ? slideSection.lines.slice(1)
+                                              : slideSection.type === 'section'
+                                                ? slideSection.lines
+                                                : []
+                                          }
+                                          lineHeight={tvLayout.lineHeight}
+                                          fontSize={tvLayout.fontSize}
+                                          className="w-full shrink-0"
+                                        />
+                                      </div>
+                                    ) : slideSection.type === 'section' ? (
                                       <SectionSlide
-                                        label={card.label}
-                                        lines={card.lines}
+                                        label={slideSection.label}
+                                        lines={slideSection.lines}
                                         lineHeight={tvLayout.lineHeight}
                                         fontSize={tvLayout.fontSize}
-                                        hideVerticalLabel
-                                        className="mx-0 h-full min-h-0 w-full min-w-0 max-w-none flex-1 self-stretch"
+                                        className="w-full shrink-0"
                                       />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : isFuerzaFortalecimientoSingle || isMetconRoundSingle ? (
-                              <div
-                                className="mx-auto flex w-full shrink-0 flex-col sm:max-w-4xl"
-                                style={{ maxWidth: `${singleCardWidth}%` }}
-                              >
-                                <SectionSlide
-                                  label={slideSection.label}
-                                  lines={
-                                    slideSection.type === 'section' &&
-                                    isMetconRoundSingle &&
-                                    slideSection.lines[0]?.trim() === 'Crossfit'
-                                      ? slideSection.lines.slice(1)
-                                      : slideSection.type === 'section'
-                                        ? slideSection.lines
-                                        : []
-                                  }
-                                  lineHeight={tvLayout.lineHeight}
-                                  fontSize={tvLayout.fontSize}
-                                  className="w-full shrink-0"
-                                />
-                              </div>
-                            ) : slideSection.type === 'section' ? (
-                              <SectionSlide
-                                label={slideSection.label}
-                                lines={slideSection.lines}
-                                lineHeight={tvLayout.lineHeight}
-                                fontSize={tvLayout.fontSize}
-                                className="w-full shrink-0"
-                              />
-                            ) : null}
-                          </div>
-                            )
-                          })()}
-                        </section>
-                      )
-                    })}
-                  </div>
-                </section>
-              )}
-            </div>
+                                    ) : null}
+                                  </div>
+                                )
+                              })()}
+                            </section>
+                          )
+                        })}
+                      </div>
+                    </section>
+                  )}
+                </div>
               )}
             </>
           )}
         </main>
       </div>
+
+      {sessionUid ? (
+        <aside
+          aria-live="polite"
+          aria-label="Dispositivos en la sesión de control"
+          className={`pointer-events-none fixed left-3 z-[55] max-w-[min(18rem,calc(100vw-1.5rem))] rounded-xl border border-gray-600/90 bg-[#2a2a2a]/95 px-3 py-2 text-left shadow-lg shadow-black/40 backdrop-blur-md transition-opacity duration-300 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0'
+          } ${
+            displayMode === 'tv' && showControls ? 'bottom-28 sm:bottom-32' : 'bottom-3 sm:bottom-4'
+          }`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Sesión en vivo
+          </p>
+          <p className="mt-0.5 text-sm font-bold tabular-nums text-gray-100">
+            {sessionPresencePeers.length}{' '}
+            {sessionPresencePeers.length === 1 ? 'dispositivo' : 'dispositivos'}
+          </p>
+          {sessionPresencePeers.length > 0 ? (
+            <ul className="mt-1.5 space-y-1 border-t border-gray-600/80 pt-1.5 text-xs text-gray-300">
+              {sessionPresencePeers.map((p) => (
+                <li key={p.deviceId} className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                  <span className="font-medium text-gray-100">{p.label}</span>
+                  <span className="text-gray-500">·</span>
+                  <span className="text-gray-400">
+                    {p.mode === 'tv' ? 'Modo TV' : 'Modo control'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">Esperando señal…</p>
+          )}
+        </aside>
+      ) : null}
     </div>
   )
 }

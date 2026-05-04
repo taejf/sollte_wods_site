@@ -45,10 +45,23 @@ export async function loginUser(email: string, password: string): Promise<User> 
 }
 
 const ADMIN_HEADQUARTER_KEY = 'adminHeadquarter'
+const EXPLICIT_LOGOUT_INTENT_KEY = 'explicitLogoutIntent'
 
 export function getAdminHeadquarter(): string | null {
   if (typeof window === 'undefined') return null
   return sessionStorage.getItem(ADMIN_HEADQUARTER_KEY)
+}
+
+export function markExplicitLogoutIntent(): void {
+  if (typeof window === 'undefined') return
+  sessionStorage.setItem(EXPLICIT_LOGOUT_INTENT_KEY, String(Date.now()))
+}
+
+export function consumeExplicitLogoutIntent(): boolean {
+  if (typeof window === 'undefined') return false
+  const hasIntent = sessionStorage.getItem(EXPLICIT_LOGOUT_INTENT_KEY) != null
+  if (hasIntent) sessionStorage.removeItem(EXPLICIT_LOGOUT_INTENT_KEY)
+  return hasIntent
 }
 
 export async function loginWithPin(pin: string): Promise<User> {
@@ -74,6 +87,7 @@ export async function loginWithPin(pin: string): Promise<User> {
   if (typeof data.headquarter === 'string' && data.headquarter) {
     sessionStorage.setItem(ADMIN_HEADQUARTER_KEY, data.headquarter)
   }
+  consumeExplicitLogoutIntent()
   return user
 }
 

@@ -36,15 +36,15 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5] p-8">
-      <div className="w-full max-w-[480px] bg-white p-10 rounded-lg shadow-md">
+    <div className="min-h-screen flex items-center justify-center bg-[#121212] p-8">
+      <div className="w-full max-w-[480px] bg-[#1f1f1f] p-10 rounded-lg shadow-md border border-white/10">
         <div className="flex justify-center mb-12">
           <Image
             src="/sollte_negro_full.png"
             alt="Sollte Logo"
             width={200}
             height={60}
-            className="h-auto w-auto max-w-[200px]"
+            className="h-auto w-auto max-w-[200px] invert"
             unoptimized
           />
         </div>
@@ -53,7 +53,7 @@ export default function LoginForm() {
           <div className="relative mb-8">
             <label
               htmlFor="pin"
-              className="absolute -top-2.5 left-4 bg-white px-2 text-sm text-[#666] z-10"
+              className="absolute -top-2.5 left-4 bg-[#1f1f1f] px-2 text-sm text-gray-400 z-10"
             >
               PIN
             </label>
@@ -68,12 +68,12 @@ export default function LoginForm() {
               required
               autoComplete="one-time-code"
               placeholder="5 dígitos"
-              className="w-full py-4 px-5 border border-[#d0d0d0] rounded-lg text-base text-[#333] bg-white focus:outline-none focus:border-[#4A90E2] focus:ring-2 focus:ring-[#4A90E2]/20 transition-all"
+              className="w-full py-4 px-5 border border-gray-600 rounded-lg text-base text-gray-200 bg-[#2a2a2a] focus:outline-none focus:border-[#4A90E2] focus:ring-2 focus:ring-[#4A90E2]/20 transition-all"
             />
           </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-[#fee] text-[#c33] text-sm border-l-4 border-[#c33]">
+            <div className="mb-4 p-3 rounded-lg bg-red-900/30 text-red-300 text-sm border-l-4 border-red-500">
               {error}
             </div>
           )}
@@ -81,7 +81,7 @@ export default function LoginForm() {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-8">
               <div className="w-10 h-10 border-4 border-[#f3f3f3] border-t-[#4A90E2] rounded-full animate-spin" />
-              <p className="mt-4 text-[#666] text-sm">Iniciando sesión...</p>
+              <p className="mt-4 text-gray-400 text-sm">Iniciando sesión...</p>
             </div>
           ) : (
             <button
