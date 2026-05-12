@@ -1649,9 +1649,7 @@ export default function DashboardPage() {
           return
         }
         sessionRecoveryInFlightRef.current = false
-        setError(
-          'Se bloqueó un cierre de sesión no autorizado. Usa el botón "Cerrar sesión" para finalizar la sesión.'
-        )
+        router.replace('/')
         return
       }
       try {
