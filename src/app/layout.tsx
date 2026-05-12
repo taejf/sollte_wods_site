@@ -5,7 +5,7 @@ import ThemeInit from '@/components/ThemeInit'
 import './globals.css'
 
 /** Modo oscuro forzado en todo el sitio. */
-const THEME_BOOT_SCRIPT = `(function(){try{document.documentElement.classList.add('dark');localStorage.setItem('theme','dark');}catch(e){document.documentElement.classList.add('dark');}})();`
+const THEME_BOOT_SCRIPT = `(function(){try{document.documentElement.classList.add('dark');}catch(e){document.documentElement.classList.add('dark');}})();`
 
 const heebo = Heebo({
   subsets: ['latin'],

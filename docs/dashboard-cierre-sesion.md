@@ -8,7 +8,15 @@ Este documento describe el comportamiento del **dashboard de WODs** (`/dashboard
 
 2. Pérdida de sesión **sin** ese flujo: Firebase notifica usuario nulo después de haber tenido sesión admin válida en esa carga de página, pero **no** hay marca de cierre oficial. Primero se intenta **recuperación automática** con `loginWithPin` si existe PIN en `localStorage`. Si no hay PIN o no aplica el reintento, **se redirige al inicio (`/`)**. El único texto de error que puede quedar visible en este flujo es el de **fallo al reautenticar con el PIN guardado** cuando ese intento se ejecuta y falla (véase la tabla más abajo).
 
-La lógica vive en `src/app/dashboard/page.tsx` (listener `onAuthChange`) y en `src/lib/auth.ts` (`markExplicitLogoutIntent`, `consumeExplicitLogoutIntent`, `logoutUser`, funciones de PIN y recuperación).
+La lógica vive en `src/app/dashboard/page.tsx` (listener `onAuthChange`) y en `src/lib/auth.ts` (`markExplicitLogoutIntent`, `consumeExplicitLogoutIntent`, `logoutUser`, `ensureSignedOutAndClearTransientAuthState`, funciones de PIN y recuperación).
+
+## Pérdida imprevista de sesión: forzar estado «cerrado» en el cliente
+
+Firebase puede dejar de exponer usuario **antes** de que la UI haya pasado por «Cerrar sesión». En esos casos, además de redirigir o mostrar el error de recuperación con PIN, se llama a **`ensureSignedOutAndClearTransientAuthState()`**: ejecuta `signOut` del SDK (es seguro si ya no hay sesión), limpia en `sessionStorage` las claves de sede admin y la de intención de cierre (`adminHeadquarter`, `explicitLogoutIntent`) y **no** borra el PIN de kiosk en `localStorage`, salvo que `invalidateStoredDashboardPinIfAuthRejected` lo haya eliminado tras un fallo de credenciales.
+
+Así el cliente no queda con restos de sesión en `sessionStorage` ni con un token local dudoso; el cierre «no oficial» se trata como **sesión terminada**, con la excepción deliberada de conservar el PIN para recuperación en TV.
+
+El botón «Cerrar sesión» sigue usando `logoutUser`, que además **elimina** el PIN guardado y aplica la misma limpieza de `sessionStorage` y `signOut`.
 
 ## Mitigación: PIN en `localStorage` y re-sesión automática
 
@@ -32,10 +40,10 @@ Tras un **login por PIN correcto** (`loginWithPin`), el PIN se persiste en **`lo
 
 | Estado | Acción habitual |
 |--------|----------------|
-| Sesión perdida **y** intención de «Cerrar sesión» marcada **o** aún no había sesión admin en esta visita | Redirección al inicio (`/`) |
+| Sesión perdida **y** intención de «Cerrar sesión» marcada **o** aún no había sesión admin en esta visita | `ensureSignedOutAndClearTransientAuthState()` y redirección al inicio (`/`) |
 | Sesión perdida **y** ya hubo sesión admin **sin** marca de cierre **y** hay PIN en `localStorage` | Intento de `loginWithPin` automático; si tiene éxito, se continúa en el dashboard |
-| Mismo caso anterior **pero** recuperación fallida | Mensaje en dashboard sobre no poder recuperar la sesión automáticamente (PIN o conexión); el usuario puede volver a iniciar sesión según la UI |
-| Sesión perdida **y** no hay PIN guardado aplicable para ese evento | Redirección al inicio (`/`) |
+| Mismo caso anterior **pero** recuperación fallida | Tras limpiar estado con `ensureSignedOutAndClearTransientAuthState()`, mensaje en dashboard sobre recuperación; el usuario puede iniciar sesión de nuevo |
+| Sesión perdida **y** no hay PIN guardado aplicable para ese evento | `ensureSignedOutAndClearTransientAuthState()` y redirección al inicio (`/`) |
 
 La marca de cierre oficial se guarda solo al usar el botón «Cerrar sesión» en el dashboard (`handleLogout`), no al cerrar el navegador ni al borrar pestañas a mano.
 
@@ -76,4 +84,4 @@ La marca de cierre oficial se guarda solo al usar el botón «Cerrar sesión» e
 
 - PIN de recuperación: `getStoredDashboardPin`, `clearStoredDashboardPin`, `invalidateStoredDashboardPinIfAuthRejected` en `src/lib/auth.ts`; `persistDashboardPinForRecovery` se usa internamente tras `loginWithPin` exitoso.
 
-- Para **no** guardar el PIN en el cliente o cambiar cómo se redirige al perder sesión, ajustar `onAuthChange` y/o `loginWithPin` / `logoutUser`.
+- Para **no** guardar el PIN en el cliente o cambiar cómo se redirige al perder sesión, ajustar `onAuthChange` y/o `loginWithPin` / `logoutUser` / `ensureSignedOutAndClearTransientAuthState`.

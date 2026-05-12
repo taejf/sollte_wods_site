@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import {
   checkIsAdmin,
   consumeExplicitLogoutIntent,
+  ensureSignedOutAndClearTransientAuthState,
   getStoredDashboardPin,
   invalidateStoredDashboardPinIfAuthRejected,
   loginWithPin,
@@ -1630,6 +1631,7 @@ export default function DashboardPage() {
         const explicitLogout = consumeExplicitLogoutIntent()
         if (explicitLogout || !hadAuthenticatedSessionRef.current) {
           sessionRecoveryInFlightRef.current = false
+          await ensureSignedOutAndClearTransientAuthState()
           router.replace('/')
           return
         }
@@ -1640,6 +1642,7 @@ export default function DashboardPage() {
             await loginWithPin(savedPin)
           } catch (err) {
             invalidateStoredDashboardPinIfAuthRejected(err)
+            await ensureSignedOutAndClearTransientAuthState()
             setError(
               'No se pudo recuperar la sesión automáticamente. Vuelve a iniciar sesión con el PIN o revisa la conexión.'
             )
@@ -1649,6 +1652,7 @@ export default function DashboardPage() {
           return
         }
         sessionRecoveryInFlightRef.current = false
+        await ensureSignedOutAndClearTransientAuthState()
         router.replace('/')
         return
       }

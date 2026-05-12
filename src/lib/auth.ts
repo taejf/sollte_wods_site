@@ -66,6 +66,25 @@ export function consumeExplicitLogoutIntent(): boolean {
   return hasIntent
 }
 
+function clearAuthTransientSessionKeys(): void {
+  if (typeof window === 'undefined') return
+  sessionStorage.removeItem(ADMIN_HEADQUARTER_KEY)
+  sessionStorage.removeItem(EXPLICIT_LOGOUT_INTENT_KEY)
+}
+
+/**
+ * Tras pérdida de sesión Firebase en el cliente (sobre todo sin cierre oficial): garantiza signOut local,
+ * limpia artefactos en sessionStorage y no borra el PIN de recuperación en localStorage.
+ */
+export async function ensureSignedOutAndClearTransientAuthState(): Promise<void> {
+  clearAuthTransientSessionKeys()
+  try {
+    await signOut(auth)
+  } catch {
+    // Sin sesión o error de red: el objetivo es dejar el cliente coherente
+  }
+}
+
 function persistDashboardPinForRecovery(pin: string): void {
   if (typeof window === 'undefined') return
   try {
@@ -139,9 +158,9 @@ export async function loginWithPin(pin: string): Promise<User> {
 
 export async function logoutUser(): Promise<void> {
   if (typeof window !== 'undefined') {
-    sessionStorage.removeItem(ADMIN_HEADQUARTER_KEY)
     clearStoredDashboardPin()
   }
+  clearAuthTransientSessionKeys()
   await signOut(auth)
 }
 
