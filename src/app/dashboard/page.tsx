@@ -6,6 +6,9 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import {
   checkIsAdmin,
   consumeExplicitLogoutIntent,
+  getStoredDashboardPin,
+  invalidateStoredDashboardPinIfAuthRejected,
+  loginWithPin,
   logoutUser,
   markExplicitLogoutIntent,
   onAuthChange,
@@ -1382,7 +1385,6 @@ export default function DashboardPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(true)
   const [showControls, setShowControls] = useState(false)
-  const [currentTime, setCurrentTime] = useState('')
   const [dateLabel, setDateLabel] = useState({
     weekday: '',
     datePart: '',
@@ -1418,6 +1420,7 @@ export default function DashboardPage() {
   const lenRef = useRef(0)
   const useInfiniteRef = useRef(false)
   const hadAuthenticatedSessionRef = useRef(false)
+  const sessionRecoveryInFlightRef = useRef(false)
 
   useEffect(() => {
     try {
@@ -1626,9 +1629,26 @@ export default function DashboardPage() {
         setSessionUid(null)
         const explicitLogout = consumeExplicitLogoutIntent()
         if (explicitLogout || !hadAuthenticatedSessionRef.current) {
+          sessionRecoveryInFlightRef.current = false
           router.replace('/')
           return
         }
+        const savedPin = getStoredDashboardPin()
+        if (savedPin && !sessionRecoveryInFlightRef.current) {
+          sessionRecoveryInFlightRef.current = true
+          try {
+            await loginWithPin(savedPin)
+          } catch (err) {
+            invalidateStoredDashboardPinIfAuthRejected(err)
+            setError(
+              'No se pudo recuperar la sesión automáticamente. Vuelve a iniciar sesión con el PIN o revisa la conexión.'
+            )
+          } finally {
+            sessionRecoveryInFlightRef.current = false
+          }
+          return
+        }
+        sessionRecoveryInFlightRef.current = false
         setError(
           'Se bloqueó un cierre de sesión no autorizado. Usa el botón "Cerrar sesión" para finalizar la sesión.'
         )
@@ -1650,6 +1670,7 @@ export default function DashboardPage() {
 
       hadAuthenticatedSessionRef.current = true
       setSessionUid(user.uid)
+      setError('')
 
       try {
         const idToken = await user.getIdToken()
@@ -1863,16 +1884,9 @@ export default function DashboardPage() {
   }, [len, useInfinite])
 
   useEffect(() => {
-    const updateDateTime = () => {
+    const updateDateLabel = () => {
       const now = new Date()
       const locale = 'es-ES'
-      setCurrentTime(
-        now.toLocaleTimeString(locale, {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        })
-      )
       const dateToShow = isSedeMaestra ? selectedWodDate : now
       const weekday = dateToShow.toLocaleDateString(locale, {
         weekday: 'long',
@@ -1888,9 +1902,7 @@ export default function DashboardPage() {
         full: `${weekday}, ${datePart}`,
       })
     }
-    updateDateTime()
-    const id = setInterval(updateDateTime, 1000)
-    return () => clearInterval(id)
+    updateDateLabel()
   }, [isSedeMaestra, selectedWodDate])
 
   useEffect(() => {
@@ -2025,13 +2037,12 @@ export default function DashboardPage() {
         <div className="pointer-events-none fixed right-2 top-2 z-40 sm:right-3 sm:top-3">
           <div className="pointer-events-auto inline-flex max-w-[min(38rem,calc(100vw-1rem))] items-center px-8 py-5 sm:px-9 sm:py-5">
             <p
-              className="text-[#333] dark:text-gray-200 text-xl sm:text-2xl md:text-3xl font-semibold tabular-nums tracking-wide leading-tight text-center"
-              title={`${dateLabel.full} · ${currentTime}`}
+              className="text-[#333] dark:text-gray-200 text-xl sm:text-2xl md:text-3xl font-semibold tracking-wide leading-tight text-center"
+              title={dateLabel.full}
             >
               <span className="block whitespace-nowrap">
                 {dateLabel.weekday}, {dateLabel.datePart}
               </span>
-              <span className="mt-1 block whitespace-nowrap">{currentTime}</span>
             </p>
           </div>
         </div>
