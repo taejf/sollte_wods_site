@@ -15,5 +15,7 @@ declare namespace NodeJS {
     FIREBASE_PROJECT_ID?: string
     FIREBASE_CLIENT_EMAIL?: string
     FIREBASE_PRIVATE_KEY?: string
+    /** Clave privada en base64 (alternativa en Vercel si los saltos de línea fallan). */
+    FIREBASE_PRIVATE_KEY_B64?: string
   }
 }

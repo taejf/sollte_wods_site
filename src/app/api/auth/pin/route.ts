@@ -1,6 +1,11 @@
 import bcrypt from 'bcryptjs'
 import { type NextRequest, NextResponse } from 'next/server'
-import { ADMINS_COLLECTION_PATH, getAdminAuth, getAdminFirestore } from '@/lib/firebase-admin'
+import {
+  ADMINS_COLLECTION_PATH,
+  getAdminAuth,
+  getAdminFirestore,
+  isFirebaseAdminCredentialsMissingError,
+} from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,7 +49,13 @@ export async function POST(request: NextRequest) {
       token,
       headquarter: matched.headquarter ?? null,
     })
-  } catch (_err) {
+  } catch (err) {
+    if (isFirebaseAdminCredentialsMissingError(err)) {
+      return NextResponse.json(
+        { error: 'Servidor sin credenciales Firebase. Contacta al administrador.' },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: 'Error al validar el PIN' }, { status: 500 })
   }
 }
