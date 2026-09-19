@@ -1326,8 +1326,13 @@ function isTripleMetconFormatLine(item: string): boolean {
   return isForTimeLine(item) || isRoundLine(item) || /\bamrap\b/i.test(item)
 }
 
+function isTripleRestBetweenWodsLine(line: string): boolean {
+  return /^rest\s*3\s*min/i.test(line.trim())
+}
+
 /** Omite la línea de tema si ya se usó como título neón (p. ej. "Amor" / "Amor ❤️"). */
 function shouldOmitTripleThemeLine(line: string, themeTitle: string, themeBase: string): boolean {
+  if (isTripleRestBetweenWodsLine(line)) return true
   if (PARTNER_WOD_REGEX.test(line)) return true
   if (line === themeTitle) return true
 
@@ -1453,6 +1458,9 @@ function TripleCrossfitSectionSlide({
 }) {
   const theme = useDashboardTheme()
   const columnFontSize = clamp(fontSize * 0.82, 0.65, 1.05)
+  const showRestBetweenWodsMessage = columns.some((column) =>
+    column.lines.some((line) => isTripleRestBetweenWodsLine(line))
+  )
 
   return (
     <div
@@ -1517,6 +1525,14 @@ function TripleCrossfitSectionSlide({
           )
         })}
       </div>
+      {showRestBetweenWodsMessage && (
+        <p
+          className={`shrink-0 text-center font-bold ${theme.blockSecondaryText} text-lg sm:text-2xl md:text-4xl lg:text-5xl px-2 pb-2 pt-1 sm:pt-1.5 md:pt-2`}
+          style={{ lineHeight }}
+        >
+          {renderStyledLineText('Descansa 3 minutos entre wods', theme)}
+        </p>
+      )}
     </div>
   )
 }
