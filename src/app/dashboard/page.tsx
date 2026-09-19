@@ -2,7 +2,17 @@
 
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   checkIsAdmin,
   consumeExplicitLogoutIntent,
@@ -50,12 +60,71 @@ function buildNeonGlowShadow(color: string): string {
   return `0 0 6px rgba(${r},${g},${b},0.75), 0 0 14px rgba(${r},${g},${b},0.5), 0 0 26px rgba(${r},${g},${b},0.3)`
 }
 
+type DashboardTheme = {
+  pageBackground: string
+  sectionHeaderColor: string
+  exerciseText: string
+  subtitleText: string
+  noteText: string
+  highlightToken: string
+  emphasisToken: string
+  blockTitleText: string
+  blockSecondaryText: string
+  blockMutedText: string
+  partnerBadgeClass: string
+}
+
+const DEFAULT_DASHBOARD_THEME: DashboardTheme = {
+  pageBackground:
+    'radial-gradient(circle at 50% 28%, #2d3544 0%, #22262e 40%, #1a1a1a 68%, #121212 100%)',
+  sectionHeaderColor: '#42FFFF',
+  exerciseText:
+    'text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
+  subtitleText:
+    'text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold',
+  noteText:
+    'text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium',
+  highlightToken: '#00FFFF',
+  emphasisToken: '#F8F400',
+  blockTitleText: 'text-[#333] dark:text-gray-200',
+  blockSecondaryText: 'text-[#333] dark:text-gray-200',
+  blockMutedText: 'text-[#666] dark:text-gray-400',
+  partnerBadgeClass:
+    'inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base',
+}
+
+/** Tema rosa amor/amistad para el 19/09/2026: fondo oscuro rosa para logo claro y texto legible. */
+const PINK_LOVE_DASHBOARD_THEME: DashboardTheme = {
+  pageBackground:
+    'radial-gradient(circle at 58% 40%, #8f4568 0%, #6a334f 26%, #4a2338 52%, #351a28 76%, #1f0f18 100%)',
+  sectionHeaderColor: '#FFB8D0',
+  exerciseText:
+    'text-[#FFF0F5] text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
+  subtitleText:
+    'text-[#F5C6D8] text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold',
+  noteText:
+    'text-[#FFE8F0] text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium',
+  highlightToken: '#C7436E',
+  emphasisToken: '#FFD4A8',
+  blockTitleText: 'text-[#FFF8FA]',
+  blockSecondaryText: 'text-[#FFE8F0]',
+  blockMutedText: 'text-[#E8B4C8]',
+  partnerBadgeClass:
+    'inline-flex items-center rounded-full border border-[#FFB8D0]/60 bg-[#FFB8D0]/12 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#FFF0F5] shadow-[0_0_10px_rgba(255,184,208,0.4)] sm:text-sm md:text-base',
+}
+
+const DashboardThemeContext = createContext(DEFAULT_DASHBOARD_THEME)
+
+function useDashboardTheme(): DashboardTheme {
+  return useContext(DashboardThemeContext)
+}
+
 type NeonOutlineHeaderSize = 'section' | 'column'
 
 /** Mismo estilo neón outline que WARM UP / METCON, con color configurable. */
 function NeonOutlineHeader({
   label,
-  color = '#42FFFF',
+  color,
   size = 'section',
   uppercase = true,
   className = '',
@@ -66,6 +135,8 @@ function NeonOutlineHeader({
   uppercase?: boolean
   className?: string
 }) {
+  const theme = useDashboardTheme()
+  const resolvedColor = color ?? theme.sectionHeaderColor
   const sizeClasses =
     size === 'section'
       ? 'text-3xl sm:text-5xl md:text-7xl lg:text-8xl'
@@ -76,8 +147,8 @@ function NeonOutlineHeader({
     <h2
       className={`m-0 w-full shrink-0 p-0 text-center font-bold tracking-wider text-transparent ${uppercase ? 'uppercase' : ''} ${sizeClasses} ${className}`}
       style={{
-        WebkitTextStroke: `${strokeWidth} ${color}`,
-        textShadow: buildNeonGlowShadow(color),
+        WebkitTextStroke: `${strokeWidth} ${resolvedColor}`,
+        textShadow: buildNeonGlowShadow(resolvedColor),
       }}
     >
       {label}
@@ -267,12 +338,6 @@ function splitWarmupIntoTwoColumns(items: string[]): string[][] {
   return [items.slice(0, splitIndex), items.slice(splitIndex)]
 }
 
-const EXERCISE_LINE_TEXT =
-  'text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]'
-const NOTE_LINE_TEXT =
-  'text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium'
-const SUBTITLE_LINE_TEXT =
-  'text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold'
 
 /**
  * Mapa de puntos donde se decide la tipografía por línea (y tokens #00FFFF / énfasis).
@@ -300,14 +365,12 @@ function isSubtitleLine(item: string, ctx?: LineTextContext): boolean {
   return isRoundLine(item)
 }
 
-function getLineTextClasses(item: string, ctx?: LineTextContext): string {
-  if (isSubtitleLine(item, ctx)) return SUBTITLE_LINE_TEXT
-  if (isNoteLine(item)) return NOTE_LINE_TEXT
-  return EXERCISE_LINE_TEXT
+function getLineTextClasses(item: string, ctx: LineTextContext | undefined, theme: DashboardTheme): string {
+  if (isSubtitleLine(item, ctx)) return theme.subtitleText
+  if (isNoteLine(item)) return theme.noteText
+  return theme.exerciseText
 }
 
-const HIGHLIGHT_TOKEN_TEXT = 'text-[#00FFFF]'
-const EMPHASIS_TOKEN_TEXT = 'text-[#F8F400]'
 const LINE_HIGHLIGHT_TOKEN_REGEX =
   /\bRPE\s*\d+(?:\s*-\s*\d+)?\b|\d+(?:[.,]\d+)?%|(?<![A-Za-z])\d+(?:[xX:/+-]\d+)*(?:[%xX:/+-]|:)?(?:["”])?(?![A-Za-z])/gi
 
@@ -355,7 +418,7 @@ function splitExerciseLineAtPlusNumberOutsideParens(line: string): string[] {
   return segments
 }
 
-function renderLineHighlightTokens(line: string): React.ReactNode {
+function renderLineHighlightTokens(line: string, theme: DashboardTheme): React.ReactNode {
   const parts: React.ReactNode[] = []
   let cursor = 0
 
@@ -372,7 +435,7 @@ function renderLineHighlightTokens(line: string): React.ReactNode {
     parts.push(
       <span
         key={`token-${start}`}
-        className={isEmphasisToken ? EMPHASIS_TOKEN_TEXT : HIGHLIGHT_TOKEN_TEXT}
+        style={{ color: isEmphasisToken ? theme.emphasisToken : theme.highlightToken }}
       >
         {token}
       </span>
@@ -390,13 +453,14 @@ function renderLineHighlightTokens(line: string): React.ReactNode {
 
 function renderStyledLineText(
   line: string,
+  theme: DashboardTheme,
   opts?: {
     highlightTokens?: boolean
   }
 ): React.ReactNode {
   const segments = splitExerciseLineAtPlusNumberOutsideParens(line)
   if (segments.length <= 1) {
-    return opts?.highlightTokens === false ? line : renderLineHighlightTokens(line)
+    return opts?.highlightTokens === false ? line : renderLineHighlightTokens(line, theme)
   }
   let segmentStart = 0
   let isFirstSegment = true
@@ -410,7 +474,7 @@ function renderStyledLineText(
         return (
           <Fragment key={key}>
             {showBreak ? <br /> : null}
-            {opts?.highlightTokens === false ? seg : renderLineHighlightTokens(seg)}
+            {opts?.highlightTokens === false ? seg : renderLineHighlightTokens(seg, theme)}
           </Fragment>
         )
       })}
@@ -442,6 +506,7 @@ function ExerciseColumnItems({
   extraLiClass?: (item: string) => string
   compactFirstItemTopSpacing?: boolean
 }) {
+  const theme = useDashboardTheme()
   const keyCount = new Map<string, number>()
   return (
     <ul className="list-none p-0 m-0 flex flex-col">
@@ -451,10 +516,10 @@ function ExerciseColumnItems({
         return (
           <li
             key={`${item}-${occ}`}
-            className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+            className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
             style={{ lineHeight }}
           >
-            {renderStyledLineText(item, {
+            {renderStyledLineText(item, theme, {
               highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
             })}
           </li>
@@ -477,6 +542,7 @@ function ExerciseMultiColumnGrid({
   extraLiClass?: (item: string) => string
   compactFirstItemTopSpacing?: boolean
 }) {
+  const theme = useDashboardTheme()
   const gapRow = 'mt-2 sm:mt-3 md:mt-4'
 
   if (layout === 'single') {
@@ -489,10 +555,10 @@ function ExerciseMultiColumnGrid({
           return (
             <li
               key={`${item}-${occ}`}
-              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+              className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
-              {renderStyledLineText(item, {
+              {renderStyledLineText(item, theme, {
                 highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
               })}
             </li>
@@ -515,10 +581,10 @@ function ExerciseMultiColumnGrid({
             return (
               <li
                 key={`${item}-${occ}`}
-                className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+                className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
                 style={{ lineHeight }}
               >
-                {renderStyledLineText(item, {
+                {renderStyledLineText(item, theme, {
                   highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
                 })}
               </li>
@@ -560,10 +626,10 @@ function ExerciseMultiColumnGrid({
           return (
             <li
               key={`${item}-${occ}`}
-              className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
+              className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], { isFirstItem: i === 0, compactFirstItemTopSpacing })} ${extraLiClass?.(item) ?? ''}`}
               style={{ lineHeight }}
             >
-              {renderStyledLineText(item, {
+              {renderStyledLineText(item, theme, {
                 highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
               })}
             </li>
@@ -697,6 +763,7 @@ function SectionSlide({
   /** Cuando hay dos columnas, el título va en {@link DualColumnSectionHeader} y no en la franja. */
   hideVerticalLabel?: boolean
 }) {
+  const theme = useDashboardTheme()
   const rawItems = lines
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
@@ -769,9 +836,7 @@ function SectionSlide({
       {!hideVerticalLabel && <DualColumnSectionHeader label={label} />}
       {isMetcon && partnerWodLine && (
         <div className="mt-1 sm:mt-1.5 md:mt-2 flex justify-center">
-          <span className="inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base">
-            {partnerWodLine}
-          </span>
+          <span className={theme.partnerBadgeClass}>{partnerWodLine}</span>
         </div>
       )}
       <div
@@ -784,7 +849,7 @@ function SectionSlide({
               !shouldUseAccesoriosDualByTitle &&
               !shouldFlattenAccesoriosSingleTrack && (
                 <p
-                  className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
+                  className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                     isAccesorios
                       ? 'mb-0 leading-tight'
                       : isWarmup
@@ -800,7 +865,7 @@ function SectionSlide({
                 {isEnduranceSection ? (
                   <div className="mb-1 sm:mb-1.5 md:mb-2">
                     <p
-                      className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
+                      className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                         restLines[0] && isSubtitleLine(restLines[0], { isFirstItem: true })
                           ? 'mb-0 leading-tight'
                           : ''
@@ -810,7 +875,7 @@ function SectionSlide({
                     </p>
                     {restLines[0] && (
                       <p
-                        className={`text-[#666] dark:text-gray-400 text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium ${hideVerticalLabel ? '' : 'text-center'}`}
+                        className={`${theme.blockMutedText} text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium ${hideVerticalLabel ? '' : 'text-center'}`}
                       >
                         {restLines[0]}
                       </p>
@@ -835,14 +900,14 @@ function SectionSlide({
                           className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
+                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                               hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
                             }`}
                           >
                             Crossfit
                           </p>
                           <p
-                            className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                            className={`${theme.blockSecondaryText} text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
                           >
                             {firstLine}
                           </p>
@@ -857,14 +922,14 @@ function SectionSlide({
                           className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
+                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
                               hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
                             }`}
                           >
                             Sollte funcional
                           </p>
                           <p
-                            className={`text-[#333] dark:text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                            className={`${theme.blockSecondaryText} text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
                           >
                             {titleLine}
                           </p>
@@ -878,7 +943,7 @@ function SectionSlide({
                           className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
+                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
                           >
                             {titleLine}
                           </p>
@@ -889,7 +954,7 @@ function SectionSlide({
                       return (
                         <p
                           key={`${block.title}-${block.lines.join('|')}`}
-                          className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2 ${hideVerticalLabel ? '' : 'text-center'}`}
+                          className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-1 sm:mb-2 ${hideVerticalLabel ? '' : 'text-center'}`}
                         >
                           {block.title}
                         </p>
@@ -951,10 +1016,10 @@ function SectionSlide({
                               return (
                                 <li
                                   key={`${item}-${occ}`}
-                                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} ${hideVerticalLabel ? '' : 'text-center'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
+                                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} ${hideVerticalLabel ? '' : 'text-center'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
                                   style={{ lineHeight: lineHeight }}
                                 >
-                                  {renderStyledLineText(item, {
+                                  {renderStyledLineText(item, theme, {
                                     highlightTokens: !isSubtitleLine(item, {
                                       isFirstItem: i === 0,
                                     }),
@@ -984,7 +1049,7 @@ function SectionSlide({
               <>
                 {accesoriosInlineHeaderLine && (
                   <p
-                    className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0.5 sm:mb-1 md:mb-1.5 ${hideVerticalLabel ? '' : 'text-center'}`}
+                    className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0.5 sm:mb-1 md:mb-1.5 ${hideVerticalLabel ? '' : 'text-center'}`}
                   >
                     {accesoriosInlineHeaderLine}
                   </p>
@@ -1000,7 +1065,7 @@ function SectionSlide({
               <div className="mt-2 sm:mt-3 md:mt-4 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6 md:gap-8">
                 <div className="min-w-0">
                   <p
-                    className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                    className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
                   >
                     {firstLine}
                   </p>
@@ -1015,7 +1080,7 @@ function SectionSlide({
                 </div>
                 <div className="min-w-0">
                   <p
-                    className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
+                    className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] mb-0 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
                   >
                     Accesorios
                   </p>
@@ -1053,7 +1118,7 @@ function SectionSlide({
                   >
                     {block.title && (
                       <p
-                        className={`font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                        className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
                           isAccesorios
                             ? 'mb-0 leading-tight'
                             : hasSubtitleFirstListItem
@@ -1105,7 +1170,7 @@ function SectionSlide({
           </>
         ) : (
           <p
-            className={`text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
+            className={`${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
           >
             {firstLine}
           </p>
@@ -1130,6 +1195,7 @@ function DualSectionSlide({
   fontSize?: number
   className?: string
 }) {
+  const theme = useDashboardTheme()
   const dualColumnFontSize = clamp(fontSize * 1.14, 0.9, 1.45)
   const rawCrossfitItems = crossfitLines
     .filter((line) => line.trim())
@@ -1163,9 +1229,7 @@ function DualSectionSlide({
       <DualColumnSectionHeader label={label} />
       {partnerWodLine && (
         <div className="flex justify-center">
-          <span className="inline-flex items-center rounded-full border border-[#42FFFF]/60 bg-[#42FFFF]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#7AFFFF] shadow-[0_0_10px_rgba(66,255,255,0.35)] sm:text-sm md:text-base">
-            {partnerWodLine}
-          </span>
+          <span className={theme.partnerBadgeClass}>{partnerWodLine}</span>
         </div>
       )}
       <div className="flex min-h-0 flex-1 items-stretch gap-1.5 sm:gap-2 md:gap-3">
@@ -1176,7 +1240,7 @@ function DualSectionSlide({
               style={{ fontSize: `${dualColumnFontSize}rem` }}
             >
               <p
-                className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                className={`text-center font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
                   hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
                 }`}
               >
@@ -1190,10 +1254,10 @@ function DualSectionSlide({
                     return (
                       <li
                         key={`${item}-${occ}`}
-                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
+                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
                         style={{ lineHeight: lineHeight }}
                       >
-                        {renderStyledLineText(item, {
+                        {renderStyledLineText(item, theme, {
                           highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
                         })}
                       </li>
@@ -1211,7 +1275,7 @@ function DualSectionSlide({
               style={{ fontSize: `${dualColumnFontSize}rem` }}
             >
               <p
-                className={`text-center font-semibold text-[#333] dark:text-gray-200 text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                className={`text-center font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
                   hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
                 }`}
               >
@@ -1225,10 +1289,10 @@ function DualSectionSlide({
                     return (
                       <li
                         key={`${item}-${occ}`}
-                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 })} text-center ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
+                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
                         style={{ lineHeight: lineHeight }}
                       >
-                        {renderStyledLineText(item, {
+                        {renderStyledLineText(item, theme, {
                           highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
                         })}
                       </li>
@@ -1387,6 +1451,7 @@ function TripleCrossfitSectionSlide({
   fontSize?: number
   className?: string
 }) {
+  const theme = useDashboardTheme()
   const columnFontSize = clamp(fontSize * 0.82, 0.65, 1.05)
 
   return (
@@ -1435,10 +1500,10 @@ function TripleCrossfitSectionSlide({
                         return (
                           <li
                             key={`${item}-${occ}`}
-                            className={`${isSubtitle ? SUBTITLE_LINE_TEXT : getLineTextClasses(item, lineCtx)} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], lineCtx)}`}
+                            className={`${isSubtitle ? theme.subtitleText : getLineTextClasses(item, lineCtx, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], lineCtx)}`}
                             style={{ lineHeight: lineHeight }}
                           >
-                            {renderStyledLineText(item, {
+                            {renderStyledLineText(item, theme, {
                               highlightTokens: !isSubtitle,
                             })}
                           </li>
@@ -2265,8 +2330,19 @@ export default function DashboardPage() {
     }
   }, [])
 
+  const themeDateSource = isSedeMaestra
+    ? selectedWodDate
+    : (currentWod?.wodDate ?? new Date())
+  const dashboardTheme = isTripleThemeWodDate(themeDateSource)
+    ? PINK_LOVE_DASHBOARD_THEME
+    : DEFAULT_DASHBOARD_THEME
+
   return (
-    <div className="dark min-h-screen flex flex-col bg-[radial-gradient(circle_at_50%_28%,#2d3544_0%,#22262e_40%,#1a1a1a_68%,#121212_100%)]">
+    <DashboardThemeContext.Provider value={dashboardTheme}>
+      <div
+        className="dark min-h-screen flex flex-col"
+        style={{ background: dashboardTheme.pageBackground }}
+      >
       {displayMode === 'tv' && (
         <div className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(34rem,calc(100vw-1rem))] flex-col gap-3.5 sm:left-3 sm:top-3 sm:gap-4">
           <div className="pointer-events-auto inline-flex w-fit items-center px-8 py-5 sm:px-9 sm:py-5">
@@ -3610,6 +3686,7 @@ export default function DashboardPage() {
           )}
         </aside>
       ) : null}
-    </div>
+      </div>
+    </DashboardThemeContext.Provider>
   )
 }
