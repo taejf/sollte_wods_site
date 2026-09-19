@@ -3,6 +3,8 @@ import { getAdminAuth } from '@/lib/firebase-admin'
 import type { WodsApiResponse } from '@/lib/wod'
 import { getDashboardWods } from '@/server/wods/get-dashboard-wods'
 
+export const dynamic = 'force-dynamic'
+
 function readBearerToken(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization')
   if (!authHeader) return null
