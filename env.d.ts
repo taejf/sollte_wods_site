@@ -11,5 +11,9 @@ declare namespace NodeJS {
     NEXT_PUBLIC_FIREBASE_APP_ID: string
     /** JSON completo de la cuenta de servicio de Firebase (solo servidor). En local puede usarse serviceAccountKey.json en su lugar. */
     FIREBASE_SERVICE_ACCOUNT_JSON?: string
+    /** Alternativa recomendada en Vercel: credenciales por separado (solo servidor). */
+    FIREBASE_PROJECT_ID?: string
+    FIREBASE_CLIENT_EMAIL?: string
+    FIREBASE_PRIVATE_KEY?: string
   }
 }
