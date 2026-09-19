@@ -36,13 +36,58 @@ const carouselArrowIconClassNameTv = 'w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w
 /** Icono proporcional al carril estrecho del panel modo control. */
 const carouselArrowIconClassNameControl = 'w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-14 lg:h-14'
 
-/** Título único encima de dos columnas (METCON / STRENGTH duales). */
-function DualColumnSectionHeader({ label }: { label: string }) {
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace('#', '')
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+  }
+}
+
+function buildNeonGlowShadow(color: string): string {
+  const { r, g, b } = hexToRgb(color)
+  return `0 0 6px rgba(${r},${g},${b},0.75), 0 0 14px rgba(${r},${g},${b},0.5), 0 0 26px rgba(${r},${g},${b},0.3)`
+}
+
+type NeonOutlineHeaderSize = 'section' | 'column'
+
+/** Mismo estilo neón outline que WARM UP / METCON, con color configurable. */
+function NeonOutlineHeader({
+  label,
+  color = '#42FFFF',
+  size = 'section',
+  uppercase = true,
+  className = '',
+}: {
+  label: string
+  color?: string
+  size?: NeonOutlineHeaderSize
+  uppercase?: boolean
+  className?: string
+}) {
+  const sizeClasses =
+    size === 'section'
+      ? 'text-3xl sm:text-5xl md:text-7xl lg:text-8xl'
+      : 'text-xl sm:text-3xl md:text-5xl lg:text-6xl'
+  const strokeWidth = size === 'section' ? '1.5px' : '1px'
+
   return (
-    <h2 className="m-0 w-full shrink-0 p-0 text-center text-3xl font-bold uppercase tracking-wider text-transparent [-webkit-text-stroke:1.5px_#42FFFF] [text-shadow:0_0_6px_rgba(66,255,255,0.75),0_0_14px_rgba(66,255,255,0.5),0_0_26px_rgba(66,255,255,0.3)] sm:text-5xl md:text-7xl lg:text-8xl">
+    <h2
+      className={`m-0 w-full shrink-0 p-0 text-center font-bold tracking-wider text-transparent ${uppercase ? 'uppercase' : ''} ${sizeClasses} ${className}`}
+      style={{
+        WebkitTextStroke: `${strokeWidth} ${color}`,
+        textShadow: buildNeonGlowShadow(color),
+      }}
+    >
       {label}
     </h2>
   )
+}
+
+/** Título único encima de dos columnas (METCON / STRENGTH duales). */
+function DualColumnSectionHeader({ label }: { label: string }) {
+  return <NeonOutlineHeader label={label} />
 }
 
 const BLOCK_TITLE_ENDURANCE = 'Endurance'
@@ -1199,12 +1244,228 @@ function DualSectionSlide({
   )
 }
 
+/** Vista especial 19/09/2026: 3 metcoms crossfit en columnas temáticas. */
+const TRIPLE_THEME_METCOM_COLORS = [
+  { theme: 'Amor', color: '#FD3574' },
+  { theme: 'Amistad', color: '#37C37D' },
+  { theme: 'Union', color: '#E4DBEB' },
+] as const
+
+type TripleCrossfitColumn = {
+  themeTitle: string
+  themeBase: string
+  color: string
+  lines: string[]
+}
+
+function isTripleMetconFormatLine(item: string): boolean {
+  return isForTimeLine(item) || isRoundLine(item) || /\bamrap\b/i.test(item)
+}
+
+/** Omite la línea de tema si ya se usó como título neón (p. ej. "Amor" / "Amor ❤️"). */
+function shouldOmitTripleThemeLine(line: string, themeTitle: string, themeBase: string): boolean {
+  if (PARTNER_WOD_REGEX.test(line)) return true
+  if (line === themeTitle) return true
+
+  const lineKey = normalizeThemeKey(line)
+  const titleKey = normalizeThemeKey(themeTitle)
+  const baseKey = normalizeThemeKey(themeBase)
+
+  if (lineKey === titleKey || lineKey === baseKey) return true
+  if (
+    lineKey.startsWith(baseKey) &&
+    !/\d/.test(line) &&
+    !isTripleMetconFormatLine(line)
+  ) {
+    return true
+  }
+
+  return false
+}
+
+function isTripleColumnSubtitleLine(item: string, index: number, items: string[]): boolean {
+  const formatIndex = items.findIndex(isTripleMetconFormatLine)
+  if (formatIndex >= 0 && index === formatIndex) return true
+  return isSubtitleLine(item, { isFirstItem: index === 0 })
+}
+
+function normalizeThemeKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function matchTripleThemeConfig(firstLine: string, fallbackIndex: number) {
+  const normalized = normalizeThemeKey(firstLine)
+  const matched = TRIPLE_THEME_METCOM_COLORS.find((entry) =>
+    normalized.startsWith(normalizeThemeKey(entry.theme))
+  )
+  return matched ?? TRIPLE_THEME_METCOM_COLORS[fallbackIndex]
+}
+
+function hasHeartEmoji(value: string): boolean {
+  return /❤️|❤|♥️|♥/u.test(value)
+}
+
+function resolveTripleThemeDisplayTitle(
+  firstLine: string,
+  themeBase: string,
+  themeMatchesFirstLine: boolean,
+  lines: string[]
+): string {
+  if (themeBase === 'Amor') {
+    const heartLine = lines.find(
+      (line) =>
+        normalizeThemeKey(line).startsWith('amor') && hasHeartEmoji(line)
+    )
+    if (heartLine) return heartLine.trim()
+    if (themeMatchesFirstLine && hasHeartEmoji(firstLine)) return firstLine
+    return 'Amor ❤️'
+  }
+
+  return themeMatchesFirstLine ? firstLine : themeBase
+}
+
+function isTripleThemeWodDate(wodDate: unknown): boolean {
+  if (!wodDate) return false
+  const d = new Date(wodDate as string | number | Date)
+  if (Number.isNaN(d.getTime())) return false
+  d.setHours(0, 0, 0, 0)
+  const target = new Date(2026, 8, 19)
+  target.setHours(0, 0, 0, 0)
+  return d.getTime() === target.getTime()
+}
+
+function buildTripleCrossfitSection(
+  metcoes: { description?: string; functionalDescription?: string }[]
+): Extract<WodSection, { type: 'triple-crossfit' }> | null {
+  const descriptions = metcoes
+    .map((metcon) => (typeof metcon?.description === 'string' ? metcon.description.trim() : ''))
+    .filter(Boolean)
+
+  if (descriptions.length < 3) return null
+
+  const columns: TripleCrossfitColumn[] = descriptions.slice(0, 3).map((desc, index) => {
+    const lines = desc
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const firstLine = lines[0] ?? ''
+    const themeConfig = matchTripleThemeConfig(firstLine, index)
+    const themeMatchesFirstLine = normalizeThemeKey(firstLine).startsWith(
+      normalizeThemeKey(themeConfig.theme)
+    )
+
+    const themeTitle = resolveTripleThemeDisplayTitle(
+      firstLine,
+      themeConfig.theme,
+      themeMatchesFirstLine,
+      lines
+    )
+
+    return {
+      themeTitle,
+      themeBase: themeConfig.theme,
+      color: themeConfig.color,
+      lines: themeMatchesFirstLine ? lines.slice(1) : lines,
+    }
+  })
+
+  return { type: 'triple-crossfit', label: 'METCON', columns }
+}
+
+function TripleCrossfitSectionSlide({
+  columns,
+  lineHeight = LINE_HEIGHT_DEFAULT,
+  fontSize = FONT_SIZE_DEFAULT,
+  className = '',
+}: {
+  columns: TripleCrossfitColumn[]
+  lineHeight?: number
+  fontSize?: number
+  className?: string
+}) {
+  const columnFontSize = clamp(fontSize * 0.82, 0.65, 1.05)
+
+  return (
+    <div
+      className={`flex w-full max-w-none h-full min-h-0 flex-col gap-1 sm:gap-1.5 md:gap-2 ${className}`}
+    >
+      <div className="flex min-h-0 flex-1 items-stretch gap-1 sm:gap-1.5 md:gap-2">
+        {columns.map((column) => {
+          const items = column.lines
+            .filter((line) => line.trim())
+            .map((line) => line.trim().replace(/^[•-]\s*/, ''))
+            .filter(
+              (line) => !shouldOmitTripleThemeLine(line, column.themeTitle, column.themeBase)
+            )
+          const lineKeyCount = new Map<string, number>()
+          const formatLineIndex = items.findIndex(isTripleMetconFormatLine)
+
+          return (
+            <div
+              key={`${column.themeTitle}|${column.lines.join('|')}`}
+              className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden"
+            >
+              <div
+                className="flex min-h-0 flex-1 flex-col justify-start px-2 pb-2 pt-3 sm:px-3 sm:pb-3 sm:pt-4 md:px-4 md:pb-4 md:pt-5 lg:px-5 lg:pb-5 lg:pt-6"
+                style={{ fontSize: `${columnFontSize}rem` }}
+              >
+                <NeonOutlineHeader
+                  label={column.themeTitle}
+                  color={column.color}
+                  size="column"
+                  uppercase={false}
+                  className="px-1 pb-2 pt-1 leading-tight sm:px-2 sm:pb-3 sm:pt-1.5 md:pb-4 md:pt-2"
+                />
+                {items.length > 0 && (
+                  <ul className="list-none p-0 m-0 flex flex-col">
+                    {items.map((item, i) =>
+                      (() => {
+                        const isFormatLine = formatLineIndex >= 0 && i === formatLineIndex
+                        const lineCtx = {
+                          isFirstItem: i === 0,
+                          compactFirstItemTopSpacing: isFormatLine || formatLineIndex === 0,
+                        }
+                        const isSubtitle = isTripleColumnSubtitleLine(item, i, items)
+                        const occ = (lineKeyCount.get(item) ?? 0) + 1
+                        lineKeyCount.set(item, occ)
+                        return (
+                          <li
+                            key={`${item}-${occ}`}
+                            className={`${isSubtitle ? SUBTITLE_LINE_TEXT : getLineTextClasses(item, lineCtx)} text-center ${exerciseGridItemBottomBorderClasses(i, items.length, item, items[i + 1], lineCtx)}`}
+                            style={{ lineHeight: lineHeight }}
+                          >
+                            {renderStyledLineText(item, {
+                              highlightTokens: !isSubtitle,
+                            })}
+                          </li>
+                        )
+                      })()
+                    )}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 type WodSection =
   | { type: 'header'; title: string; description: string }
   | { type: 'section'; label: string; lines: string[] }
   | { type: 'dual-section'; label: string; crossfitLines: string[]; functionalLines: string[] }
+  | { type: 'triple-crossfit'; label: string; columns: TripleCrossfitColumn[] }
 
-type CarouselSlideSection = Extract<WodSection, { type: 'section' | 'dual-section' }>
+type CarouselSlideSection = Extract<
+  WodSection,
+  { type: 'section' | 'dual-section' | 'triple-crossfit' }
+>
 
 /**
  * Líneas no vacías: solo para STRENGTH / METCON, a partir de aquí en TV se fijan interlineado, fuente y escala.
@@ -1225,6 +1486,9 @@ function countSectionLinesForDensity(slide: CarouselSlideSection): number {
     const cf = slide.crossfitLines.filter((l) => l.trim()).length
     const fn = slide.functionalLines.filter((l) => l.trim()).length
     return Math.max(cf, fn)
+  }
+  if (slide.type === 'triple-crossfit') {
+    return Math.max(...slide.columns.map((col) => col.lines.filter((l) => l.trim()).length), 0)
   }
   return slide.lines.filter((l) => l.trim()).length
 }
@@ -1312,41 +1576,49 @@ function getSections(wod: WodDoc | undefined): WodSection[] {
     })
   }
 
-  metcoes.forEach((metcon, index) => {
-    const descRaw = metcon?.description || ''
-    const desc = typeof descRaw === 'string' ? descRaw : ''
-    const funcDescRaw = metcon?.functionalDescription || ''
-    const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
+  const tripleCrossfitSection = isTripleThemeWodDate(wod.wodDate)
+    ? buildTripleCrossfitSection(metcoes)
+    : null
 
-    const hasBothMetcon = desc.trim() && funcDesc.trim()
+  if (tripleCrossfitSection) {
+    sections.push(tripleCrossfitSection)
+  } else {
+    metcoes.forEach((metcon, index) => {
+      const descRaw = metcon?.description || ''
+      const desc = typeof descRaw === 'string' ? descRaw : ''
+      const funcDescRaw = metcon?.functionalDescription || ''
+      const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
 
-    if (hasBothMetcon) {
-      sections.push({
-        type: 'dual-section',
-        label: `METCON ${index + 1}`,
-        crossfitLines: desc.split('\n').filter((l) => l.trim()),
-        functionalLines: funcDesc.split('\n').filter((l) => l.trim()),
-      })
-    } else if (desc.trim()) {
-      const lines = desc.split('\n').filter((l) => l.trim())
-      if (lines.length > 0) {
+      const hasBothMetcon = desc.trim() && funcDesc.trim()
+
+      if (hasBothMetcon) {
         sections.push({
-          type: 'section',
+          type: 'dual-section',
           label: `METCON ${index + 1}`,
-          lines,
+          crossfitLines: desc.split('\n').filter((l) => l.trim()),
+          functionalLines: funcDesc.split('\n').filter((l) => l.trim()),
         })
+      } else if (desc.trim()) {
+        const lines = desc.split('\n').filter((l) => l.trim())
+        if (lines.length > 0) {
+          sections.push({
+            type: 'section',
+            label: `METCON ${index + 1}`,
+            lines,
+          })
+        }
+      } else if (funcDesc.trim()) {
+        const lines = funcDesc.split('\n').filter((l) => l.trim())
+        if (lines.length > 0) {
+          sections.push({
+            type: 'section',
+            label: `METCON ${index + 1}`,
+            lines,
+          })
+        }
       }
-    } else if (funcDesc.trim()) {
-      const lines = funcDesc.split('\n').filter((l) => l.trim())
-      if (lines.length > 0) {
-        sections.push({
-          type: 'section',
-          label: `METCON ${index + 1}`,
-          lines,
-        })
-      }
-    }
-  })
+    })
+  }
 
   if (additional.trim()) {
     sections.push({
@@ -1386,11 +1658,11 @@ export default function DashboardPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(true)
   const [showControls, setShowControls] = useState(false)
-  const [dateLabel, setDateLabel] = useState({
-    weekday: '',
-    datePart: '',
-    full: '',
-  })
+  // const [dateLabel, setDateLabel] = useState({
+  //   weekday: '',
+  //   datePart: '',
+  //   full: '',
+  // })
   const [lineHeightList, setLineHeightList] = useState(LINE_HEIGHT_DEFAULT)
   const [cardScale, setCardScale] = useState(CARD_SCALE_DEFAULT)
   const [fontSizeScale, setFontSizeScale] = useState(FONT_SIZE_DEFAULT)
@@ -1570,8 +1842,8 @@ export default function DashboardPage() {
   const currentWod = wods[0]
   const sections = getSections(currentWod)
   const carouselSections = sections.filter(
-    (s): s is Extract<WodSection, { type: 'section' | 'dual-section' }> =>
-      s.type === 'section' || s.type === 'dual-section'
+    (s): s is CarouselSlideSection =>
+      s.type === 'section' || s.type === 'dual-section' || s.type === 'triple-crossfit'
   )
   const hasLongMetconOrStrengthSections = carouselSections.some(
     (slide) =>
@@ -1604,7 +1876,9 @@ export default function DashboardPage() {
       const seed =
         slideSection.type === 'section'
           ? `section|${slideSection.label}|${slideSection.lines.join('|')}`
-          : `dual|${slideSection.label}|${slideSection.crossfitLines.join('|')}|${slideSection.functionalLines.join('|')}`
+          : slideSection.type === 'dual-section'
+            ? `dual|${slideSection.label}|${slideSection.crossfitLines.join('|')}|${slideSection.functionalLines.join('|')}`
+            : `triple|${slideSection.label}|${slideSection.columns.map((col) => `${col.themeTitle}:${col.lines.join('|')}`).join('||')}`
       const count = (keyCount.get(seed) ?? 0) + 1
       keyCount.set(seed, count)
       return { ...slideSection, renderKey: `${seed}#${count}` }
@@ -1617,7 +1891,9 @@ export default function DashboardPage() {
       const seed =
         slideSection.type === 'section'
           ? `section|${slideSection.label}|${slideSection.lines.join('|')}`
-          : `dual|${slideSection.label}|${slideSection.crossfitLines.join('|')}|${slideSection.functionalLines.join('|')}`
+          : slideSection.type === 'dual-section'
+            ? `dual|${slideSection.label}|${slideSection.crossfitLines.join('|')}|${slideSection.functionalLines.join('|')}`
+            : `triple|${slideSection.label}|${slideSection.columns.map((col) => `${col.themeTitle}:${col.lines.join('|')}`).join('||')}`
       const count = (keyCount.get(seed) ?? 0) + 1
       keyCount.set(seed, count)
       return { slideSection, renderKey: `${seed}#${count}` }
@@ -1885,27 +2161,27 @@ export default function DashboardPage() {
     setCurrentIndex((i) => (i === len - 1 ? 0 : i + 1))
   }, [len, useInfinite])
 
-  useEffect(() => {
-    const updateDateLabel = () => {
-      const now = new Date()
-      const locale = 'es-ES'
-      const dateToShow = isSedeMaestra ? selectedWodDate : now
-      const weekday = dateToShow.toLocaleDateString(locale, {
-        weekday: 'long',
-      })
-      const datePart = dateToShow.toLocaleDateString(locale, {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-      setDateLabel({
-        weekday,
-        datePart,
-        full: `${weekday}, ${datePart}`,
-      })
-    }
-    updateDateLabel()
-  }, [isSedeMaestra, selectedWodDate])
+  // useEffect(() => {
+  //   const updateDateLabel = () => {
+  //     const now = new Date()
+  //     const locale = 'es-ES'
+  //     const dateToShow = isSedeMaestra ? selectedWodDate : now
+  //     const weekday = dateToShow.toLocaleDateString(locale, {
+  //       weekday: 'long',
+  //     })
+  //     const datePart = dateToShow.toLocaleDateString(locale, {
+  //       year: 'numeric',
+  //       month: 'long',
+  //       day: 'numeric',
+  //     })
+  //     setDateLabel({
+  //       weekday,
+  //       datePart,
+  //       full: `${weekday}, ${datePart}`,
+  //     })
+  //   }
+  //   updateDateLabel()
+  // }, [isSedeMaestra, selectedWodDate])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2035,6 +2311,7 @@ export default function DashboardPage() {
           )}
         </div>
       )}
+      {/* Fecha superior derecha (TV) — oculta temporalmente
       {displayMode === 'tv' && (
         <div className="pointer-events-none fixed right-2 top-2 z-40 sm:right-3 sm:top-3">
           <div className="pointer-events-auto inline-flex max-w-[min(38rem,calc(100vw-1rem))] items-center px-8 py-5 sm:px-9 sm:py-5">
@@ -2049,6 +2326,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      */}
 
       {displayMode === 'tv' && (
         <div
@@ -2956,6 +3234,49 @@ export default function DashboardPage() {
                             (currentIndex === 0 && index === len - 1) ||
                             (currentIndex === len - 1 && index === 0)
                           if (!shouldRender) return null
+                          if (slideSection.type === 'triple-crossfit') {
+                            const tvLayout = resolveTvSlideDensityLayout(
+                              slideSection,
+                              lineHeightList,
+                              fontSizeScale,
+                              cardScale,
+                              denseLineHeight,
+                              denseFontSize,
+                              denseCardScale
+                            )
+                            return (
+                              <section
+                                key={slideSection.renderKey}
+                                className="absolute inset-0 min-h-0 min-w-0 h-full px-2 sm:px-3 md:px-4 flex items-center justify-center transition-opacity duration-700 ease-in-out"
+                                style={{
+                                  opacity: isActive ? 1 : 0,
+                                  pointerEvents: isActive ? 'auto' : 'none',
+                                }}
+                                aria-label={
+                                  useInfinite ? `Sección ${(index % len) + 1} de ${len}` : undefined
+                                }
+                                aria-hidden={!isActive}
+                              >
+                                <div
+                                  className="flex max-h-full min-h-0 w-full max-w-[98%] flex-1 flex-col items-center justify-center overflow-y-auto [&::-webkit-scrollbar]:hidden py-1 sm:py-2"
+                                  style={{
+                                    width: `${clamp(100 / tvLayout.cardScale, 70, 140)}%`,
+                                    transform: `scale(${tvLayout.cardScale})`,
+                                    transformOrigin: 'center center',
+                                    scrollbarWidth: 'none',
+                                    msOverflowStyle: 'none',
+                                  }}
+                                >
+                                  <TripleCrossfitSectionSlide
+                                    columns={slideSection.columns}
+                                    lineHeight={tvLayout.lineHeight}
+                                    fontSize={tvLayout.fontSize}
+                                    className="w-full shrink-0"
+                                  />
+                                </div>
+                              </section>
+                            )
+                          }
                           if (slideSection.type === 'dual-section') {
                             const tvLayout = resolveTvSlideDensityLayout(
                               slideSection,
