@@ -1397,14 +1397,17 @@ function resolveTripleThemeDisplayTitle(
   return themeMatchesFirstLine ? firstLine : themeBase
 }
 
-function isTripleThemeWodDate(wodDate: unknown): boolean {
-  if (!wodDate) return false
-  const d = new Date(wodDate as string | number | Date)
-  if (Number.isNaN(d.getTime())) return false
-  d.setHours(0, 0, 0, 0)
-  const target = new Date(2026, 8, 19)
-  target.setHours(0, 0, 0, 0)
-  return d.getTime() === target.getTime()
+function isTripleThemeWodDate(_wodDate: unknown): boolean {
+  // Layout del 19/09/2026 desactivado: la comparación de fecha (ISO en UTC
+  // contra medianoche local) lo estaba mostrando también en otros días.
+  return false
+  // if (!wodDate) return false
+  // const d = new Date(wodDate as string | number | Date)
+  // if (Number.isNaN(d.getTime())) return false
+  // d.setHours(0, 0, 0, 0)
+  // const target = new Date(2026, 8, 19)
+  // target.setHours(0, 0, 0, 0)
+  // return d.getTime() === target.getTime()
 }
 
 function buildTripleCrossfitSection(
