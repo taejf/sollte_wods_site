@@ -33,6 +33,7 @@ const dashboardSafelist = [
   "xl:border-l-[#d0d0d0]",
   "xl:dark:border-l-gray-500",
   "xl:pl-3",
+  "font-nosifer",
 ] as const
 
 export default {
@@ -43,6 +44,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ["var(--font-heebo)", "system-ui", "sans-serif"],
+        nosifer: ["var(--font-nosifer)", "system-ui", "sans-serif"],
       },
     },
   },
