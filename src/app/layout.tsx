@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Heebo } from 'next/font/google'
+import localFont from 'next/font/local'
 import Script from 'next/script'
 import ThemeInit from '@/components/ThemeInit'
 import './globals.css'
@@ -11,6 +12,16 @@ const heebo = Heebo({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700', '800'],
   variable: '--font-heebo',
+})
+
+const nosifer = localFont({
+  src: [
+    { path: '../assets/fonts/Nosifer/Nosifer-Regular.ttf', weight: '400', style: 'normal' },
+    { path: '../assets/fonts/Nosifer/Nosifer-Regular.ttf', weight: '600', style: 'normal' },
+    { path: '../assets/fonts/Nosifer/Nosifer-Regular.ttf', weight: '700', style: 'normal' },
+  ],
+  variable: '--font-nosifer',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -30,7 +41,7 @@ export default function RootLayout({
           {THEME_BOOT_SCRIPT}
         </Script>
       </head>
-      <body suppressHydrationWarning className={`${heebo.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${heebo.variable} ${nosifer.variable} font-sans antialiased`}>
         <ThemeInit />
         {children}
       </body>

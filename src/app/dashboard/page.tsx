@@ -46,20 +46,6 @@ const carouselArrowIconClassNameTv = 'w-16 h-16 sm:w-[4.5rem] sm:h-[4.5rem] md:w
 /** Icono proporcional al carril estrecho del panel modo control. */
 const carouselArrowIconClassNameControl = 'w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 lg:w-14 lg:h-14'
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const normalized = hex.replace('#', '')
-  return {
-    r: Number.parseInt(normalized.slice(0, 2), 16),
-    g: Number.parseInt(normalized.slice(2, 4), 16),
-    b: Number.parseInt(normalized.slice(4, 6), 16),
-  }
-}
-
-function buildNeonGlowShadow(color: string): string {
-  const { r, g, b } = hexToRgb(color)
-  return `0 0 6px rgba(${r},${g},${b},0.75), 0 0 14px rgba(${r},${g},${b},0.5), 0 0 26px rgba(${r},${g},${b},0.3)`
-}
-
 type DashboardTheme = {
   pageBackground: string
   sectionHeaderColor: string
@@ -74,19 +60,21 @@ type DashboardTheme = {
   partnerBadgeClass: string
 }
 
+const TITLE_COLOR = '#cc021a'
+
 const DEFAULT_DASHBOARD_THEME: DashboardTheme = {
   pageBackground:
-    'radial-gradient(circle at 50% 28%, #2d3544 0%, #22262e 40%, #1a1a1a 68%, #121212 100%)',
-  sectionHeaderColor: '#42FFFF',
+    'radial-gradient(circle at 50% 28%, #1D0B33 0%, #22262e 40%, #1a1a1a 68%, #121212 100%)',
+  sectionHeaderColor: TITLE_COLOR,
   exerciseText:
     'text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
   subtitleText:
     'text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold',
   noteText:
     'text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium',
-  highlightToken: '#00FFFF',
-  emphasisToken: '#F8F400',
-  blockTitleText: 'text-[#333] dark:text-gray-200',
+  highlightToken: TITLE_COLOR,
+  emphasisToken: TITLE_COLOR,
+  blockTitleText: 'font-nosifer text-[#cc021a]',
   blockSecondaryText: 'text-[#333] dark:text-gray-200',
   blockMutedText: 'text-[#666] dark:text-gray-400',
   partnerBadgeClass:
@@ -141,15 +129,10 @@ function NeonOutlineHeader({
     size === 'section'
       ? 'text-3xl sm:text-5xl md:text-7xl lg:text-8xl'
       : 'text-xl sm:text-3xl md:text-5xl lg:text-6xl'
-  const strokeWidth = size === 'section' ? '1.5px' : '1px'
-
   return (
     <h2
-      className={`m-0 w-full shrink-0 p-0 text-center font-bold tracking-wider text-transparent ${uppercase ? 'uppercase' : ''} ${sizeClasses} ${className}`}
-      style={{
-        WebkitTextStroke: `${strokeWidth} ${resolvedColor}`,
-        textShadow: buildNeonGlowShadow(resolvedColor),
-      }}
+      className={`m-0 w-full shrink-0 p-0 text-center font-nosifer leading-none ${uppercase ? 'uppercase' : ''} ${sizeClasses} ${className}`}
+      style={{ color: resolvedColor, fontFamily: 'var(--font-nosifer), sans-serif' }}
     >
       {label}
     </h2>
@@ -340,7 +323,7 @@ function splitWarmupIntoTwoColumns(items: string[]): string[][] {
 
 
 /**
- * Mapa de puntos donde se decide la tipografía por línea (y tokens #00FFFF / énfasis).
+ * Mapa de puntos donde se decide la tipografía por línea (y tokens numéricos en #cc021a).
  *
  * Pipeline unificado: `getLineTextClasses` + `exerciseGridItemBottomBorderClasses` + `renderStyledLineText`.
  * - `ExerciseColumnItems`: listas en columnas (grid 2/3 cols y warmup en dos columnas).
@@ -520,7 +503,7 @@ function ExerciseColumnItems({
             style={{ lineHeight }}
           >
             {renderStyledLineText(item, theme, {
-              highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+              highlightTokens: true,
             })}
           </li>
         )
@@ -559,7 +542,7 @@ function ExerciseMultiColumnGrid({
               style={{ lineHeight }}
             >
               {renderStyledLineText(item, theme, {
-                highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                highlightTokens: true,
               })}
             </li>
           )
@@ -585,7 +568,7 @@ function ExerciseMultiColumnGrid({
                 style={{ lineHeight }}
               >
                 {renderStyledLineText(item, theme, {
-                  highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                  highlightTokens: true,
                 })}
               </li>
             )
@@ -630,7 +613,7 @@ function ExerciseMultiColumnGrid({
               style={{ lineHeight }}
             >
               {renderStyledLineText(item, theme, {
-                highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                highlightTokens: true,
               })}
             </li>
           )
@@ -1020,9 +1003,7 @@ function SectionSlide({
                                   style={{ lineHeight: lineHeight }}
                                 >
                                   {renderStyledLineText(item, theme, {
-                                    highlightTokens: !isSubtitleLine(item, {
-                                      isFirstItem: i === 0,
-                                    }),
+                                    highlightTokens: true,
                                   })}
                                 </li>
                               )
@@ -1258,7 +1239,7 @@ function DualSectionSlide({
                         style={{ lineHeight: lineHeight }}
                       >
                         {renderStyledLineText(item, theme, {
-                          highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                          highlightTokens: true,
                         })}
                       </li>
                     )
@@ -1293,7 +1274,7 @@ function DualSectionSlide({
                         style={{ lineHeight: lineHeight }}
                       >
                         {renderStyledLineText(item, theme, {
-                          highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                          highlightTokens: true,
                         })}
                       </li>
                     )
@@ -1515,7 +1496,7 @@ function TripleCrossfitSectionSlide({
                             style={{ lineHeight: lineHeight }}
                           >
                             {renderStyledLineText(item, theme, {
-                              highlightTokens: !isSubtitle,
+                              highlightTokens: true,
                             })}
                           </li>
                         )
