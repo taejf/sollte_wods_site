@@ -81,7 +81,7 @@ const DEFAULT_DASHBOARD_THEME: DashboardTheme = {
   exerciseText:
     'text-gray-200 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
   subtitleText:
-    'text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold',
+    'font-bebas font-normal tracking-wide text-gray-400 text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
   noteText:
     'text-gray-200 text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium',
   highlightToken: '#00FFFF',
@@ -101,7 +101,7 @@ const PINK_LOVE_DASHBOARD_THEME: DashboardTheme = {
   exerciseText:
     'text-[#FFF0F5] text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
   subtitleText:
-    'text-[#F5C6D8] text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em] font-bold',
+    'font-bebas font-normal tracking-wide text-[#F5C6D8] text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.5em]',
   noteText:
     'text-[#FFE8F0] text-[0.95em] sm:text-[1em] md:text-[1.2em] lg:text-[1.7em] font-medium',
   highlightToken: '#C7436E',
@@ -231,17 +231,23 @@ function removeFirstMatchingLine(lines: string[], predicate: (line: string) => b
 /** Debe coincidir con las clases grid de las listas de ejercicios. */
 type ExerciseGridLayout = 'single' | 'twoCol' | 'threeCol'
 
+/** Metcon: 2 columnas solo con 11+ líneas de ejercicio (sin parámetros del WOD). */
+const METCON_TWO_COL_MIN_EXERCISES = 11
+
 function getExerciseGridLayout(
   listLength: number,
   opts: {
     isEnduranceSection?: boolean
+    isMetcon?: boolean
     isFuerza?: boolean
     isWarmup?: boolean
   }
 ): ExerciseGridLayout {
-  const { isEnduranceSection, isFuerza, isWarmup } = opts
+  const { isEnduranceSection, isMetcon, isFuerza, isWarmup } = opts
   if (isFuerza || isWarmup) return 'single'
-  if (isEnduranceSection) return 'twoCol'
+  if (isMetcon || isEnduranceSection) {
+    return listLength >= METCON_TWO_COL_MIN_EXERCISES ? 'twoCol' : 'single'
+  }
   if (listLength <= 4) return 'single'
   if (listLength < 8) return 'twoCol'
   return 'threeCol'
@@ -315,12 +321,120 @@ function exerciseGridItemBottomBorderClasses(
   return index + 1 >= total ? `${basePad} border-b-0` : `${basePad} ${b}`
 }
 
+/** Parte la lista en columnas de forma lineal (col1 completa, luego col2…), sin zigzag. */
 function splitIntoColumns<T>(items: T[], nCols: 2 | 3): T[][] {
-  const cols: T[][] = Array.from({ length: nCols }, () => [])
-  for (let i = 0; i < items.length; i++) {
-    cols[i % nCols].push(items[i])
+  const cols: T[][] = []
+  let offset = 0
+  for (let c = 0; c < nCols; c++) {
+    const remainingCols = nCols - c
+    const remainingItems = items.length - offset
+    const size = Math.ceil(remainingItems / remainingCols)
+    cols.push(items.slice(offset, offset + size))
+    offset += size
   }
   return cols
+}
+
+const HYROX_ENDURANCE_TITLE_REGEX = /^endurance:\s*hyrox\s+workout\b/i
+
+function findHyroxEnduranceTitle(...texts: string[]): string | null {
+  for (const text of texts) {
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim()
+      if (HYROX_ENDURANCE_TITLE_REGEX.test(trimmed)) return trimmed
+    }
+  }
+  return null
+}
+
+function resolveMetconPhaseLabel(
+  texts: string[],
+  index: number,
+  metconCount: number
+): string {
+  const hyroxTitle = findHyroxEnduranceTitle(...texts)
+  if (hyroxTitle) return hyroxTitle
+  return metconCount <= 1 ? 'METCON' : `METCON ${index + 1}`
+}
+
+function isMetconPhaseLabel(label: string): boolean {
+  const trimmed = label.trim()
+  return (
+    trimmed.toUpperCase().startsWith('METCON') || HYROX_ENDURANCE_TITLE_REGEX.test(trimmed)
+  )
+}
+
+/** Parámetros del WOD (no ejercicios): For time, Buy in, Rounds, EMOM, Partner, Cash out, etc. */
+function isMetconIndicationLine(item: string): boolean {
+  const t = item.trim()
+  if (!t) return false
+  if (/^endurance\s*:/i.test(t)) return false
+  if (/^for\s*time\b/i.test(t)) return true
+  if (/^buy\s*in\b/i.test(t)) return true
+  if (/^cash\s*out\b/i.test(t)) return true
+  if (PARTNER_WOD_REGEX.test(t)) return true
+  if (/^emom\b/i.test(t)) return true
+  if (/^intervalos\b/i.test(t)) return true
+  if (/^time\s*cap\b/i.test(t)) return true
+  if (isRoundLine(t)) return true
+  return false
+}
+
+function splitMetconIndicationsAndExercises(lines: string[]): {
+  headerIndications: string[]
+  exercises: string[]
+  footerIndications: string[]
+} {
+  const items = lines.map((line) => line.trim()).filter(Boolean)
+  const headerIndications: string[] = []
+  let start = 0
+  while (
+    start < items.length &&
+    isMetconIndicationLine(items[start]) &&
+    !/^cash\s*out\b/i.test(items[start])
+  ) {
+    headerIndications.push(items[start])
+    start++
+  }
+  const footerIndications: string[] = []
+  let end = items.length - 1
+  while (end >= start && isMetconIndicationLine(items[end])) {
+    footerIndications.unshift(items[end])
+    end--
+  }
+  return {
+    headerIndications,
+    exercises: items.slice(start, end + 1),
+    footerIndications,
+  }
+}
+
+function MetconIndicationLines({
+  lines,
+  className = '',
+}: {
+  lines: string[]
+  className?: string
+}) {
+  const theme = useDashboardTheme()
+  if (lines.length === 0) return null
+  const keyCount = new Map<string, number>()
+  return (
+    <div className={`flex w-full flex-col items-center text-center ${className}`}>
+      {lines.map((line) => {
+        const occ = (keyCount.get(line) ?? 0) + 1
+        keyCount.set(line, occ)
+        return (
+          <p
+            key={`${line}-${occ}`}
+            className={`m-0 font-bebas font-normal tracking-wide leading-tight ${theme.blockTitleText} text-[1.15em] sm:text-[1.35em] md:text-[1.85em] lg:text-[2.9em] py-0.5 sm:py-1`}
+          >
+            {renderStyledLineText(line, theme, { highlightTokens: true })}
+          </p>
+        )
+      })}
+    </div>
+  )
 }
 
 function splitWarmupIntoTwoColumns(items: string[]): string[][] {
@@ -435,6 +549,7 @@ function renderLineHighlightTokens(line: string, theme: DashboardTheme): React.R
     parts.push(
       <span
         key={`token-${start}`}
+        className="font-bebas font-normal tracking-wide"
         style={{ color: isEmphasisToken ? theme.emphasisToken : theme.highlightToken }}
       >
         {token}
@@ -592,7 +707,7 @@ function ExerciseMultiColumnGrid({
           })}
         </ul>
         <div
-          className={`hidden md:flex md:flex-row md:items-stretch gap-x-3 sm:gap-x-4 md:gap-x-6 ${gapRow}`}
+          className={`hidden md:flex md:flex-row md:items-stretch gap-x-6 lg:gap-x-10 ${gapRow}`}
         >
           <div className="min-w-0 flex-1">
             <ExerciseColumnItems
@@ -768,14 +883,9 @@ function SectionSlide({
     .filter((line) => line.trim())
     .map((line) => line.trim().replace(/^[•-]\s*/, ''))
   if (rawItems.length === 0) return null
-  const isMetcon = label.toUpperCase().startsWith('METCON')
-  const partnerWodLine = isMetcon
-    ? (rawItems.find((line) => PARTNER_WOD_REGEX.test(line)) ?? null)
-    : null
-  const items = isMetcon
-    ? removeFirstMatchingLine(rawItems, (line) => PARTNER_WOD_REGEX.test(line))
-    : rawItems
-  const effectiveItems = items.length > 0 ? items : rawItems
+  const isMetcon = isMetconPhaseLabel(label)
+  const items = rawItems
+  const effectiveItems = items
   const firstLine = effectiveItems[0]
   const restLines = effectiveItems.slice(1)
   const isWarmup = label.toUpperCase().startsWith('WARM')
@@ -789,6 +899,10 @@ function SectionSlide({
     isMetcon &&
     (/\bEndurance\b/i.test(firstLine) ||
       (blocks.length === 1 && blocks[0].title === BLOCK_TITLE_ENDURANCE))
+  const hideEnduranceTitleBecauseHeader =
+    hideVerticalLabel &&
+    isEnduranceSection &&
+    firstLine.trim().toLowerCase() === label.trim().toLowerCase()
   const shouldFlattenSingleTrackMetcon =
     isMetcon && !hasEnduranceKeywordInMetcon && blocks.length === 1 && blocks[0]?.title == null
   const headerToContentSpacingClass = hideVerticalLabel
@@ -831,25 +945,20 @@ function SectionSlide({
 
   return (
     <div
-      className={`flex flex-col overflow-hidden min-h-0 h-full ${hideVerticalLabel ? 'max-w-none mx-0' : `max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''} ${isEnduranceSection ? 'sm:max-w-5xl' : ''}`} ${className}`}
+      className={`flex flex-col overflow-hidden min-h-0 h-full ${hideVerticalLabel ? 'max-w-none mx-0' : `max-w-[96%] mx-auto ${isWarmup ? 'sm:max-w-4xl' : ''}`} ${className}`}
     >
       {!hideVerticalLabel && <DualColumnSectionHeader label={label} />}
-      {isMetcon && partnerWodLine && (
-        <div className="mt-1 sm:mt-1.5 md:mt-2 flex justify-center">
-          <span className={theme.partnerBadgeClass}>{partnerWodLine}</span>
-        </div>
-      )}
       <div
         className={`flex-1 min-h-0 ${contentPaddingClass} overflow-y-auto [&::-webkit-scrollbar]:hidden flex flex-col ${headerToContentSpacingClass}`}
         style={{ fontSize: `${fontSize}rem`, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {restLines.length > 0 ? (
+        {restLines.length > 0 || (isMetcon && effectiveItems.length > 0) ? (
           <>
             {!isMetcon &&
               !shouldUseAccesoriosDualByTitle &&
               !shouldFlattenAccesoriosSingleTrack && (
                 <p
-                  className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
+                  className={`${isWarmup ? 'font-bebas font-normal tracking-wide' : 'font-semibold'} ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${isWarmup || !hideVerticalLabel ? 'text-center' : ''} ${
                     isAccesorios
                       ? 'mb-0 leading-tight'
                       : isWarmup
@@ -862,26 +971,15 @@ function SectionSlide({
               )}
             {isMetcon ? (
               <>
-                {isEnduranceSection ? (
-                  <div className="mb-1 sm:mb-1.5 md:mb-2">
-                    <p
-                      className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
-                        restLines[0] && isSubtitleLine(restLines[0], { isFirstItem: true })
-                          ? 'mb-0 leading-tight'
-                          : ''
-                      }`}
-                    >
-                      {firstLine}
-                    </p>
-                    {restLines[0] && (
-                      <p
-                        className={`${theme.blockMutedText} text-[0.95em] sm:text-[1em] md:text-[1.25em] lg:text-[1.75em] -mt-0.5 leading-tight font-medium ${hideVerticalLabel ? '' : 'text-center'}`}
-                      >
-                        {restLines[0]}
-                      </p>
-                    )}
-                  </div>
-                ) : (
+                {isEnduranceSection && !hideEnduranceTitleBecauseHeader && (
+                  <p
+                    className={`mb-1 sm:mb-1.5 md:mb-2 font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
+                  >
+                    {firstLine}
+                  </p>
+                )}
+                {!isEnduranceSection &&
+                  !shouldFlattenSingleTrackMetcon &&
                   blocks.map((block) => {
                     const isSollteBlock = block.title === 'Sollte funcional'
                     const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
@@ -892,46 +990,29 @@ function SectionSlide({
                           ? block.lines[0]
                           : firstLine
                     if (block.title === 'Crossfit' || block.title === null) {
-                      if (shouldFlattenSingleTrackMetcon) return null
-                      const hasSubtitleTitleLine = isSubtitleLine(firstLine, { isFirstItem: true })
                       return (
                         <div
                           key={`${block.title ?? 'Crossfit'}-${titleLine}`}
                           className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
-                              hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
-                            }`}
+                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
                           >
                             Crossfit
-                          </p>
-                          <p
-                            className={`${theme.blockSecondaryText} text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
-                          >
-                            {firstLine}
                           </p>
                         </div>
                       )
                     }
                     if (block.title === 'Sollte funcional') {
-                      const hasSubtitleTitleLine = isSubtitleLine(titleLine, { isFirstItem: true })
                       return (
                         <div
                           key={`${block.title ?? 'Sollte funcional'}-${titleLine}`}
                           className="mb-1 sm:mb-1.5 md:mb-2"
                         >
                           <p
-                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'} ${
-                              hasSubtitleTitleLine ? 'mb-0 leading-tight' : ''
-                            }`}
+                            className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
                           >
                             Sollte funcional
-                          </p>
-                          <p
-                            className={`${theme.blockSecondaryText} text-[1em] sm:text-[1.125em] md:text-[1.5em] lg:text-[2.25em] -mt-0.5 leading-tight ${hideVerticalLabel ? '' : 'text-center'}`}
-                          >
-                            {titleLine}
                           </p>
                         </div>
                       )
@@ -961,87 +1042,54 @@ function SectionSlide({
                       )
                     }
                     return null
-                  })
-                )}
+                  })}
                 {(() => {
-                  const allListLines = isEnduranceSection
-                    ? restLines.slice(1)
+                  const sourceLines = isEnduranceSection
+                    ? restLines
                     : shouldFlattenSingleTrackMetcon
                       ? effectiveItems
-                      : blocks.flatMap((block) => {
-                          const isSollteBlock = block.title === 'Sollte funcional'
-                          const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
-                          if (isSollteBlock && block.lines.length > 0) return block.lines.slice(1)
-                          if (isEnduranceBlock && block.lines.length > 0)
-                            return block.lines.slice(1)
-                          return block.lines
-                        })
-                  const useGroupsOfFour =
-                    !isEnduranceSection && allListLines.length >= 4 && allListLines.length % 4 === 0
-                  const useGroupsOfThree =
-                    !useGroupsOfFour &&
-                    !isEnduranceSection &&
-                    allListLines.length >= 3 &&
-                    allListLines.length % 3 === 0
-                  const groupSize = useGroupsOfFour ? 4 : useGroupsOfThree ? 3 : 0
-                  const chunks =
-                    groupSize > 0
-                      ? Array.from({ length: allListLines.length / groupSize }, (_, i) =>
-                          allListLines.slice(i * groupSize, i * groupSize + groupSize)
-                        )
-                      : [allListLines]
-                  const useGrouped = useGroupsOfFour || useGroupsOfThree
-                  const gridLayout = getExerciseGridLayout(allListLines.length, {
-                    isEnduranceSection,
+                      : [
+                          ...(firstLine && isMetconIndicationLine(firstLine) ? [firstLine] : []),
+                          ...blocks.flatMap((block) => {
+                            const isSollteBlock = block.title === 'Sollte funcional'
+                            const isEnduranceBlock = block.title === BLOCK_TITLE_ENDURANCE
+                            if (isSollteBlock && block.lines.length > 0) return block.lines.slice(1)
+                            if (isEnduranceBlock && block.lines.length > 0)
+                              return block.lines.slice(1)
+                            return block.lines
+                          }),
+                        ]
+                  const { headerIndications, exercises, footerIndications } =
+                    splitMetconIndicationsAndExercises(sourceLines)
+                  const gridLayout = getExerciseGridLayout(exercises.length, {
+                    isMetcon: true,
+                    isEnduranceSection: isEnduranceSection || shouldFlattenSingleTrackMetcon,
                     isFuerza,
                     isWarmup: false,
                   })
-                  return useGrouped ? (
-                    <div
-                      className="grid gap-x-4 sm:gap-x-6 md:gap-x-8 gap-y-4 sm:gap-y-6 mt-2 sm:mt-3 md:mt-4"
-                      style={{
-                        gridTemplateColumns: `repeat(${chunks.length}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {chunks.map((chunk) => {
-                        const keyCount = new Map<string, number>()
-                        return (
-                          <ul
-                            key={`${chunk.join('|')}-${chunk.length}`}
-                            className="list-none p-0 m-0 flex flex-col"
-                          >
-                            {chunk.map((item, i) => {
-                              const occ = (keyCount.get(item) ?? 0) + 1
-                              keyCount.set(item, occ)
-                              return (
-                                <li
-                                  key={`${item}-${occ}`}
-                                  className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} ${hideVerticalLabel ? '' : 'text-center'} ${exerciseGridItemBottomBorderClasses(i, chunk.length, item, chunk[i + 1], { isFirstItem: i === 0 })} ${i === 0 ? 'font-bold' : ''}`}
-                                  style={{ lineHeight: lineHeight }}
-                                >
-                                  {renderStyledLineText(item, theme, {
-                                    highlightTokens: !isSubtitleLine(item, {
-                                      isFirstItem: i === 0,
-                                    }),
-                                  })}
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <ExerciseMultiColumnGrid
-                      items={allListLines}
-                      layout={gridLayout}
-                      lineHeight={lineHeight}
-                      extraLiClass={
-                        isEnduranceSection || shouldFlattenSingleTrackMetcon
-                          ? () => 'text-center'
-                          : undefined
-                      }
-                    />
+                  return (
+                    <>
+                      <MetconIndicationLines
+                        lines={headerIndications}
+                        className="mb-1 sm:mb-1.5 md:mb-2"
+                      />
+                      {exercises.length > 0 && (
+                        <ExerciseMultiColumnGrid
+                          items={exercises}
+                          layout={gridLayout}
+                          lineHeight={lineHeight}
+                          extraLiClass={
+                            isEnduranceSection || shouldFlattenSingleTrackMetcon
+                              ? () => 'text-center'
+                              : undefined
+                          }
+                        />
+                      )}
+                      <MetconIndicationLines
+                        lines={footerIndications}
+                        className="mt-2 sm:mt-3 md:mt-4"
+                      />
+                    </>
                   )
                 })()}
               </>
@@ -1118,7 +1166,7 @@ function SectionSlide({
                   >
                     {block.title && (
                       <p
-                        className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+                        className={`font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${isWarmup ? 'text-center' : ''} ${
                           isAccesorios
                             ? 'mb-0 leading-tight'
                             : hasSubtitleFirstListItem
@@ -1138,6 +1186,7 @@ function SectionSlide({
                               layout="single"
                               lineHeight={lineHeight}
                               compactFirstItemTopSpacing={isAccesorios}
+                              extraLiClass={isWarmup ? () => 'text-center' : undefined}
                             />
                           </div>
                           <div className="hidden sm:grid sm:grid-cols-2 sm:gap-x-6 mt-2 sm:mt-3 md:mt-4">
@@ -1150,6 +1199,7 @@ function SectionSlide({
                                   items={columnItems}
                                   lineHeight={lineHeight}
                                   compactFirstItemTopSpacing={isAccesorios}
+                                  extraLiClass={isWarmup ? () => 'text-center' : undefined}
                                 />
                               </div>
                             ))}
@@ -1161,6 +1211,7 @@ function SectionSlide({
                           layout={listGridLayout}
                           lineHeight={lineHeight}
                           compactFirstItemTopSpacing={isAccesorios}
+                          extraLiClass={isWarmup ? () => 'text-center' : undefined}
                         />
                       ))}
                   </div>
@@ -1170,7 +1221,7 @@ function SectionSlide({
           </>
         ) : (
           <p
-            className={`${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${hideVerticalLabel ? '' : 'text-center'}`}
+            className={`${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${isWarmup || !hideVerticalLabel ? 'text-center' : ''}`}
           >
             {firstLine}
           </p>
@@ -1187,6 +1238,7 @@ function DualSectionSlide({
   lineHeight = LINE_HEIGHT_DEFAULT,
   fontSize = FONT_SIZE_DEFAULT,
   className = '',
+  hideSectionHeader = false,
 }: {
   label: string
   crossfitLines: string[]
@@ -1194,6 +1246,8 @@ function DualSectionSlide({
   lineHeight?: number
   fontSize?: number
   className?: string
+  /** Cuando el título de fase vive en el header fijo de TV. */
+  hideSectionHeader?: boolean
 }) {
   const theme = useDashboardTheme()
   const dualColumnFontSize = clamp(fontSize * 1.14, 0.9, 1.45)
@@ -1207,102 +1261,93 @@ function DualSectionSlide({
     rawCrossfitItems.find((line) => PARTNER_WOD_REGEX.test(line)) ??
     rawFunctionalItems.find((line) => PARTNER_WOD_REGEX.test(line)) ??
     null
-  const crossfitItems = removeFirstMatchingLine(rawCrossfitItems, (line) =>
+  const crossfitWithoutPartner = removeFirstMatchingLine(rawCrossfitItems, (line) =>
     PARTNER_WOD_REGEX.test(line)
   )
-  const functionalItems = removeFirstMatchingLine(rawFunctionalItems, (line) =>
+  const functionalWithoutPartner = removeFirstMatchingLine(rawFunctionalItems, (line) =>
     PARTNER_WOD_REGEX.test(line)
   )
-  const hasCrossfitSubtitleFirstItem =
-    crossfitItems.length > 0 && isSubtitleLine(crossfitItems[0], { isFirstItem: true })
-  const hasFunctionalSubtitleFirstItem =
-    functionalItems.length > 0 && isSubtitleLine(functionalItems[0], { isFirstItem: true })
+  const crossfitSplit = splitMetconIndicationsAndExercises(crossfitWithoutPartner)
+  const functionalSplit = splitMetconIndicationsAndExercises(functionalWithoutPartner)
 
-  if (crossfitItems.length === 0 && functionalItems.length === 0) return null
-  const crossfitKeyCount = new Map<string, number>()
-  const functionalKeyCount = new Map<string, number>()
+  if (
+    crossfitSplit.exercises.length === 0 &&
+    crossfitSplit.headerIndications.length === 0 &&
+    crossfitSplit.footerIndications.length === 0 &&
+    functionalSplit.exercises.length === 0 &&
+    functionalSplit.headerIndications.length === 0 &&
+    functionalSplit.footerIndications.length === 0 &&
+    !partnerWodLine
+  ) {
+    return null
+  }
+
+  const renderDualTrack = (
+    trackTitle: string,
+    split: ReturnType<typeof splitMetconIndicationsAndExercises>
+  ) => {
+    const keyCount = new Map<string, number>()
+    const hasContent =
+      split.headerIndications.length > 0 ||
+      split.exercises.length > 0 ||
+      split.footerIndications.length > 0
+    if (!hasContent) return null
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden">
+        <div
+          className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
+          style={{ fontSize: `${dualColumnFontSize}rem` }}
+        >
+          <p
+            className={`text-center font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
+              split.headerIndications.length > 0 ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
+            }`}
+          >
+            {trackTitle}
+          </p>
+          <MetconIndicationLines
+            lines={split.headerIndications}
+            className="mb-1 sm:mb-1.5 md:mb-2"
+          />
+          {split.exercises.length > 0 && (
+            <ul className="list-none p-0 m-0 flex flex-col">
+              {split.exercises.map((item, i) => {
+                const occ = (keyCount.get(item) ?? 0) + 1
+                keyCount.set(item, occ)
+                return (
+                  <li
+                    key={`${item}-${occ}`}
+                    className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, split.exercises.length, item, split.exercises[i + 1], { isFirstItem: i === 0 })}`}
+                    style={{ lineHeight: lineHeight }}
+                  >
+                    {renderStyledLineText(item, theme, {
+                      highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
+                    })}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <MetconIndicationLines
+            lines={split.footerIndications}
+            className="mt-2 sm:mt-3 md:mt-4"
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
       className={`flex w-full max-w-none h-full min-h-0 flex-col gap-1 sm:gap-1.5 md:gap-2 ${className}`}
     >
-      <DualColumnSectionHeader label={label} />
+      {!hideSectionHeader && <DualColumnSectionHeader label={label} />}
       {partnerWodLine && (
-        <div className="flex justify-center">
-          <span className={theme.partnerBadgeClass}>{partnerWodLine}</span>
-        </div>
+        <MetconIndicationLines lines={[partnerWodLine]} className="mb-0.5 sm:mb-1" />
       )}
       <div className="flex min-h-0 flex-1 items-stretch gap-1.5 sm:gap-2 md:gap-3">
-        {crossfitItems.length > 0 && (
-          <div className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}>
-            <div
-              className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
-              style={{ fontSize: `${dualColumnFontSize}rem` }}
-            >
-              <p
-                className={`text-center font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                  hasCrossfitSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
-                }`}
-              >
-                Crossfit
-              </p>
-              <ul className="list-none p-0 m-0 flex flex-col">
-                {crossfitItems.map((item, i) =>
-                  (() => {
-                    const occ = (crossfitKeyCount.get(item) ?? 0) + 1
-                    crossfitKeyCount.set(item, occ)
-                    return (
-                      <li
-                        key={`${item}-${occ}`}
-                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, crossfitItems.length, item, crossfitItems[i + 1], { isFirstItem: i === 0 })}`}
-                        style={{ lineHeight: lineHeight }}
-                      >
-                        {renderStyledLineText(item, theme, {
-                          highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                        })}
-                      </li>
-                    )
-                  })()
-                )}
-              </ul>
-            </div>
-          </div>
-        )}
-        {functionalItems.length > 0 && (
-          <div className={`flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden`}>
-            <div
-              className="flex min-h-0 flex-1 flex-col justify-start p-3 sm:p-4 md:p-5 lg:p-6"
-              style={{ fontSize: `${dualColumnFontSize}rem` }}
-            >
-              <p
-                className={`text-center font-semibold ${theme.blockTitleText} text-[1.125em] sm:text-[1.25em] md:text-[1.875em] lg:text-[3em] ${
-                  hasFunctionalSubtitleFirstItem ? 'mb-0 leading-tight' : 'mb-1 sm:mb-1.5 md:mb-2'
-                }`}
-              >
-                Funcional
-              </p>
-              <ul className="list-none p-0 m-0 flex flex-col">
-                {functionalItems.map((item, i) =>
-                  (() => {
-                    const occ = (functionalKeyCount.get(item) ?? 0) + 1
-                    functionalKeyCount.set(item, occ)
-                    return (
-                      <li
-                        key={`${item}-${occ}`}
-                        className={`${getLineTextClasses(item, { isFirstItem: i === 0 }, theme)} text-center ${exerciseGridItemBottomBorderClasses(i, functionalItems.length, item, functionalItems[i + 1], { isFirstItem: i === 0 })}`}
-                        style={{ lineHeight: lineHeight }}
-                      >
-                        {renderStyledLineText(item, theme, {
-                          highlightTokens: !isSubtitleLine(item, { isFirstItem: i === 0 }),
-                        })}
-                      </li>
-                    )
-                  })()
-                )}
-              </ul>
-            </div>
-          </div>
-        )}
+        {renderDualTrack('Crossfit', crossfitSplit)}
+        {renderDualTrack('Funcional', functionalSplit)}
       </div>
     </div>
   )
@@ -1552,17 +1597,19 @@ type CarouselSlideSection = Extract<
 >
 
 /**
- * Líneas no vacías: solo para STRENGTH / METCON, a partir de aquí en TV se fijan interlineado, fuente y escala.
- * Dual: máximo por columna. Warm up, accesorios, etc. no aplican umbral (siempre usan sliders).
+ * Líneas efectivas en altura: solo para STRENGTH / METCON, a partir de aquí en TV se fijan interlineado, fuente y escala.
+ * - Dual: máximo por columna.
+ * - METCON en 2 columnas (11+ ejercicios): cuenta las filas verticales efectivas (cabecera + mitad de ejercicios + pie),
+ *   de modo que un METCON bien repartido en 2 columnas conserve tamaño legible igual que Accesorios.
+ * Warm up, accesorios, etc. no aplican umbral (siempre usan sliders).
  */
-const DENSE_SECTION_LINE_THRESHOLD = 8
-const DENSE_LINE_HEIGHT_DEFAULT = 1.05
-const DENSE_FONT_SIZE_DEFAULT = 0.875
-const DENSE_CARD_SCALE_DEFAULT = 0.6
+const DENSE_SECTION_LINE_THRESHOLD = 10
+const DENSE_LINE_HEIGHT_DEFAULT = 1.1
+const DENSE_FONT_SIZE_DEFAULT = 0.95
+const DENSE_CARD_SCALE_DEFAULT = 0.82
 
 function isTvDenseLayoutSection(slide: CarouselSlideSection): boolean {
-  const u = slide.label.toUpperCase()
-  return slide.label === 'STRENGTH' || u.startsWith('METCON')
+  return slide.label === 'STRENGTH' || isMetconPhaseLabel(slide.label)
 }
 
 function countSectionLinesForDensity(slide: CarouselSlideSection): number {
@@ -1574,7 +1621,17 @@ function countSectionLinesForDensity(slide: CarouselSlideSection): number {
   if (slide.type === 'triple-crossfit') {
     return Math.max(...slide.columns.map((col) => col.lines.filter((l) => l.trim()).length), 0)
   }
-  return slide.lines.filter((l) => l.trim()).length
+  const cleanLines = slide.lines
+    .map((l) => l.trim().replace(/^[•-]\s*/, ''))
+    .filter(Boolean)
+  if (isMetconPhaseLabel(slide.label)) {
+    const { headerIndications, exercises, footerIndications } =
+      splitMetconIndicationsAndExercises(cleanLines)
+    if (exercises.length >= METCON_TWO_COL_MIN_EXERCISES) {
+      return headerIndications.length + Math.ceil(exercises.length / 2) + footerIndications.length
+    }
+  }
+  return cleanLines.length
 }
 
 function resolveTvSlideDensityLayout(
@@ -1667,18 +1724,26 @@ function getSections(wod: WodDoc | undefined): WodSection[] {
   if (tripleCrossfitSection) {
     sections.push(tripleCrossfitSection)
   } else {
-    metcoes.forEach((metcon, index) => {
-      const descRaw = metcon?.description || ''
-      const desc = typeof descRaw === 'string' ? descRaw : ''
-      const funcDescRaw = metcon?.functionalDescription || ''
-      const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
+    const metconSources = metcoes
+      .map((metcon) => {
+        const descRaw = metcon?.description || ''
+        const desc = typeof descRaw === 'string' ? descRaw : ''
+        const funcDescRaw = metcon?.functionalDescription || ''
+        const funcDesc = typeof funcDescRaw === 'string' ? funcDescRaw : ''
+        return { desc, funcDesc }
+      })
+      .filter(({ desc, funcDesc }) => desc.trim() || funcDesc.trim())
 
-      const hasBothMetcon = desc.trim() && funcDesc.trim()
+    const metconCount = metconSources.length
+
+    metconSources.forEach(({ desc, funcDesc }, index) => {
+      const label = resolveMetconPhaseLabel([desc, funcDesc], index, metconCount)
+      const hasBothMetcon = Boolean(desc.trim() && funcDesc.trim())
 
       if (hasBothMetcon) {
         sections.push({
           type: 'dual-section',
-          label: `METCON ${index + 1}`,
+          label,
           crossfitLines: desc.split('\n').filter((l) => l.trim()),
           functionalLines: funcDesc.split('\n').filter((l) => l.trim()),
         })
@@ -1687,7 +1752,7 @@ function getSections(wod: WodDoc | undefined): WodSection[] {
         if (lines.length > 0) {
           sections.push({
             type: 'section',
-            label: `METCON ${index + 1}`,
+            label,
             lines,
           })
         }
@@ -1696,7 +1761,7 @@ function getSections(wod: WodDoc | undefined): WodSection[] {
         if (lines.length > 0) {
           sections.push({
             type: 'section',
-            label: `METCON ${index + 1}`,
+            label,
             lines,
           })
         }
@@ -2295,6 +2360,9 @@ export default function DashboardPage() {
     return Math.min(currentIndex, len - 1)
   }, [currentIndex, len, useInfinite])
 
+  const activePhaseLabel =
+    len > 0 ? (slidesToRender[controlStripLogicalIndex]?.label ?? null) : null
+
   const settleControlStripIndex = useCallback(() => {
     const el = controlNamesStripRef.current
     if (!el || len < 2) return
@@ -2359,51 +2427,53 @@ export default function DashboardPage() {
   return (
     <DashboardThemeContext.Provider value={dashboardTheme}>
       <div
-        className="dark min-h-screen flex flex-col"
+        className="dark relative min-h-screen flex flex-col"
         style={{ background: dashboardTheme.pageBackground }}
       >
-      {displayMode === 'tv' && (
+      <div
+        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center overflow-hidden"
+        aria-hidden="true"
+      >
+        <Image
+          src="/sollte_blanco.png"
+          alt=""
+          width={900}
+          height={900}
+          className="h-[min(72vmin,42rem)] w-[min(72vmin,42rem)] object-contain opacity-[0.14] blur-[2px] mix-blend-screen select-none"
+          unoptimized
+          priority
+        />
+      </div>
+      {displayMode === 'tv' && isSedeMaestra && (
         <div className="pointer-events-none fixed left-2 top-2 z-40 flex max-w-[min(34rem,calc(100vw-1rem))] flex-col gap-3.5 sm:left-3 sm:top-3 sm:gap-4">
-          <div className="pointer-events-auto inline-flex w-fit items-center px-8 py-5 sm:px-9 sm:py-5">
-            <Image
-              src="/sollte_negro_full.png"
-              alt="Sollte Logo"
-              width={360}
-              height={136}
-              className="h-16 w-auto sm:h-18 md:h-20 invert object-contain"
-              unoptimized
-            />
-          </div>
-          {isSedeMaestra && (
-            <label
-              className={`inline-flex w-fit items-center gap-4 rounded-[1.6rem] border border-white/45 bg-transparent px-8 py-5 text-xl sm:text-2xl text-[#333] dark:text-gray-200 shadow-[0_12px_26px_-12px_rgba(15,23,42,0.65)] transition-opacity duration-300 dark:border-white/15 dark:bg-transparent ${
-                controlsVisible
-                  ? 'opacity-100 pointer-events-auto'
-                  : 'opacity-0 pointer-events-none'
-              }`}
-            >
-              <span className="font-medium whitespace-nowrap">WOD del día</span>
-              <input
-                type="date"
-                value={
-                  selectedWodDate.getFullYear() +
-                  '-' +
-                  String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
-                  '-' +
-                  String(selectedWodDate.getDate()).padStart(2, '0')
+          <label
+            className={`inline-flex w-fit items-center gap-4 rounded-[1.6rem] border border-white/45 bg-transparent px-8 py-5 text-xl sm:text-2xl text-[#333] dark:text-gray-200 shadow-[0_12px_26px_-12px_rgba(15,23,42,0.65)] transition-opacity duration-300 dark:border-white/15 dark:bg-transparent ${
+              controlsVisible
+                ? 'opacity-100 pointer-events-auto'
+                : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <span className="font-medium whitespace-nowrap">WOD del día</span>
+            <input
+              type="date"
+              value={
+                selectedWodDate.getFullYear() +
+                '-' +
+                String(selectedWodDate.getMonth() + 1).padStart(2, '0') +
+                '-' +
+                String(selectedWodDate.getDate()).padStart(2, '0')
+              }
+              onChange={(e) => {
+                const val = e.target.value
+                if (val) {
+                  const d = new Date(`${val}T12:00:00`)
+                  d.setHours(0, 0, 0, 0)
+                  setSelectedWodDate(d)
                 }
-                onChange={(e) => {
-                  const val = e.target.value
-                  if (val) {
-                    const d = new Date(`${val}T12:00:00`)
-                    d.setHours(0, 0, 0, 0)
-                    setSelectedWodDate(d)
-                  }
-                }}
-                className="rounded-xl border border-[#d0d0d0] dark:border-gray-500 bg-white dark:bg-[#2a2a2a] text-[#333] dark:text-gray-200 px-3.5 py-2 text-xl sm:text-2xl focus:outline-none focus:ring-2 focus:ring-[#4A90E2]"
-              />
-            </label>
-          )}
+              }}
+              className="rounded-xl border border-[#d0d0d0] dark:border-gray-500 bg-white dark:bg-[#2a2a2a] text-[#333] dark:text-gray-200 px-3.5 py-2 text-xl sm:text-2xl focus:outline-none focus:ring-2 focus:ring-[#4A90E2]"
+            />
+          </label>
         </div>
       )}
       {/* Fecha superior derecha (TV) — oculta temporalmente
@@ -2793,7 +2863,7 @@ export default function DashboardPage() {
         </button>
       )}
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="relative z-10 flex-1 flex flex-col min-h-0 overflow-hidden">
         <main
           className={`flex-1 flex flex-col min-h-0 w-full overflow-hidden relative ${
             displayMode === 'tv'
@@ -3266,6 +3336,11 @@ export default function DashboardPage() {
                       )}
                     </div>
                   )}
+                  {!noWodForSelectedDate && activePhaseLabel && (
+                    <header className="relative z-20 flex w-full shrink-0 items-center justify-center px-3 pt-1 pb-0.5 sm:px-4 sm:pt-2 sm:pb-1 md:px-6 md:pt-3 md:pb-1.5">
+                      <NeonOutlineHeader label={activePhaseLabel} />
+                    </header>
+                  )}
                   {!noWodForSelectedDate && (
                     <section
                       className="relative flex min-h-0 flex-1 flex-col overflow-hidden w-full max-w-9xl mx-auto"
@@ -3411,6 +3486,7 @@ export default function DashboardPage() {
                                     functionalLines={slideSection.functionalLines}
                                     lineHeight={tvLayout.lineHeight}
                                     fontSize={tvLayout.fontSize}
+                                    hideSectionHeader
                                     className="w-full shrink-0"
                                   />
                                 </div>
@@ -3418,7 +3494,7 @@ export default function DashboardPage() {
                             )
                           }
 
-                          const isMetcon = slideSection.label.toUpperCase().startsWith('METCON')
+                          const isMetcon = isMetconPhaseLabel(slideSection.label)
                           const isFuerza = slideSection.label === 'STRENGTH'
                           const metconCards =
                             isMetcon && slideSection.type === 'section'
@@ -3587,14 +3663,15 @@ export default function DashboardPage() {
                                   >
                                     {singleEnduranceCard ? (
                                       <div
-                                        className="mx-auto flex w-full shrink-0 flex-col sm:max-w-5xl"
-                                        style={{ maxWidth: `${singleCardWidth}%` }}
+                                        className="mx-auto flex w-full shrink-0 flex-col"
+                                        style={{ maxWidth: `${dualCardWidth}%` }}
                                       >
                                         <SectionSlide
                                           label={singleEnduranceCard.label}
                                           lines={singleEnduranceCard.lines}
                                           lineHeight={tvLayout.lineHeight}
                                           fontSize={tvLayout.fontSize}
+                                          hideVerticalLabel
                                           className="w-full shrink-0"
                                         />
                                       </div>
@@ -3603,7 +3680,6 @@ export default function DashboardPage() {
                                         className="ml-0 mr-auto flex w-full min-h-0 max-w-full shrink-0 flex-col gap-2 sm:gap-2.5"
                                         style={{ maxWidth: `${dualCardWidth}%` }}
                                       >
-                                        <DualColumnSectionHeader label={slideSection.label} />
                                         <div
                                           className="flex min-h-0 w-full flex-1 items-stretch"
                                           style={{ gap: `${dynamicGapPx}px` }}
@@ -3643,6 +3719,7 @@ export default function DashboardPage() {
                                           }
                                           lineHeight={tvLayout.lineHeight}
                                           fontSize={tvLayout.fontSize}
+                                          hideVerticalLabel
                                           className="w-full shrink-0"
                                         />
                                       </div>
@@ -3652,6 +3729,7 @@ export default function DashboardPage() {
                                         lines={slideSection.lines}
                                         lineHeight={tvLayout.lineHeight}
                                         fontSize={tvLayout.fontSize}
+                                        hideVerticalLabel
                                         className="w-full shrink-0"
                                       />
                                     ) : null}

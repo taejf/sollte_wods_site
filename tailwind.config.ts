@@ -33,6 +33,9 @@ const dashboardSafelist = [
   "xl:border-l-[#d0d0d0]",
   "xl:dark:border-l-gray-500",
   "xl:pl-3",
+  "font-bebas",
+  "font-nunito",
+  "tracking-wide",
 ] as const
 
 export default {
@@ -42,7 +45,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-heebo)", "system-ui", "sans-serif"],
+        sans: ["var(--font-nunito)", "system-ui", "sans-serif"],
+        nunito: ["var(--font-nunito)", "system-ui", "sans-serif"],
+        bebas: ["var(--font-bebas-neue)", "sans-serif"],
       },
     },
   },

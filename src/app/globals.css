@@ -2,13 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --font-heebo: "Heebo", sans-serif;
+html,
+body {
+  font-family: var(--font-nunito), system-ui, sans-serif;
 }
 
 body {
-  font-family: var(--font-heebo), system-ui, sans-serif;
   background-color: #1a1a1a;
   color: #e5e5e5;
   min-height: 100vh;
+}
+
+@layer utilities {
+  .font-bebas {
+    font-family: var(--font-bebas-neue), sans-serif;
+  }
+
+  .font-nunito {
+    font-family: var(--font-nunito), system-ui, sans-serif;
+  }
 }
